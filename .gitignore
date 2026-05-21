@@ -1,0 +1,28 @@
+# General
+draft/
+
+# Dependencies
+*.log
+*.pid
+*.env
+
+# Go
+/server_api/vendor/
+/client/vendor/
+/server_api/*.exe
+/client/*.exe
+
+# Node
+/server_web/node_modules/
+/server_web/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+

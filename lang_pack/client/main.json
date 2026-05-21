@@ -1,0 +1,30 @@
+{
+    "connected_server": {
+        "zh": "已连接服务器",
+        "en": "Connected to server"
+    },
+    "connection_error": {
+        "zh": "连接错误",
+        "en": "Connection error"
+    },
+    "connecting_server": {
+        "zh": "正在连接服务器",
+        "en": "Connecting to server"
+    },
+    "exit": {
+        "zh": "退出",
+        "en": "Exit"
+    },
+    "http_status_code_error": {
+        "zh": "HTTP状态码错误",
+        "en": "HTTP status code error"
+    },
+    "is_not_rich_chat_server": {
+        "zh": "不是rich_chat服务器",
+        "en": "Is not rich_chat server"
+    },
+    "welcome": {
+        "zh": "欢迎来到rich_chat cli",
+        "en": "Welcome to rich_chat cli"
+    }
+}
