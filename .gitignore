@@ -1,6 +1,7 @@
 # General
 draft/
 something/
+client/config
 
 # Dependencies
 *.log
@@ -8,6 +9,8 @@ something/
 *.env
 
 # Go
+go.mod
+go.sum
 /server_api/vendor/
 /client/vendor/
 /server_api/*.exe

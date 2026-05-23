@@ -1,21 +1,14 @@
 package main
 
 import (
-	"time"
+	"fmt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
-)
-
-const (
-	WEB_PORT      = ":2316"
-	AUTH_USERNAME = "admin"
-	AUTH_PASSWORD = "password"
-	JWT_SECRET    = "secret"
-	VERSION       = "1.0.0"
 )
 
 type WebServerApi struct {
@@ -30,26 +23,26 @@ var web_server_engine *gin.Engine
 var web_server_api *WebServerApi
 var user_database *UserDatabase
 
-// Generate a JWT token for a given user ID
-func generateToken(user_id int) (string, error) {
-	expirationTime := time.Now().Add(30 * 24 * time.Hour)
+var log_func = map[string]func(v ...interface{}){
+	"info":  log.Info,
+	"debug": log.Debug,
+	"warn":  log.Warning,
+	"error": log.Error,
+}
 
-	claims := &Claims{
-		UserID: user_id,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "rich_chat",
-		},
+// Generate log message with specified parameters
+func log_output(log_type string, ip_address string, user_agent string, fmt_msg string, args ...interface{}) {
+	prefix := fmt.Sprintf("From %s, User-Agent is %s. ", ip_address, user_agent)
+	finalMsg := prefix + fmt.Sprintf(fmt_msg, args...)
+	if fn, ok := log_func[log_type]; ok {
+		fn(finalMsg)
+	} else {
+		log.Println(finalMsg)
 	}
+}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(JWT_SECRET))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
+func log_with_ctx(c *gin.Context, log_type string, fmt_msg string, args ...interface{}) {
+	log_output(log_type, c.Request.RemoteAddr, c.GetHeader("User-Agent"), fmt_msg, args...)
 }
 
 func initialize() {
@@ -63,12 +56,15 @@ func initialize() {
 
 	// Routes
 	web_server_engine.GET("/", web_server_api.Index)
-	web_server_engine.POST("/login", web_server_api.Login)
-	web_server_engine.POST("/register", web_server_api.Register)
+	web_server_engine.POST("/api/login", web_server_api.Login)
+	web_server_engine.POST("/api/register", web_server_api.Register)
+	web_server_engine.POST("/api/delete_user", web_server_api.DeleteUser)
 }
 
 func main() {
+	log.SetReportCaller(true)
 	log.SetLevel(log.InfoLevel)
+	log.SetFormatter(&logrus.JSONFormatter{})
 	log.SetFormatter(&log.TextFormatter{
 		FullTimestamp:   true,
 		TimestampFormat: "2006-01-02 15:04:05",

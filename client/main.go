@@ -46,6 +46,9 @@ func print(style_type string, text string) {
 	case "critical":
 		style = style.Foreground(lipgloss.Color("#EF4444")) // Red
 		character = "[!!!]"
+	case "debug":
+		style = style.Foreground(lipgloss.Color("#8b7e7e")) // Grey
+		character = "[DEBUG]"
 	}
 	format_text := style.Render(fmt.Sprintf("%s %s", character, text))
 	fmt.Println(format_text)
@@ -54,6 +57,7 @@ func print(style_type string, text string) {
 	}
 }
 
+// simplify user input
 func input(text string) (string, error) {
 	fmt.Print(text)
 	reader := bufio.NewReader(os.Stdin)

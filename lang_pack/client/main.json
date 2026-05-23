@@ -19,6 +19,14 @@
         "zh": "配置文件夹不是文件夹",
         "en": "Config dir is not a dir"
     },
+    "confirm_password": {
+        "zh": "确认密码：",
+        "en": "Confirm password:"
+    },
+    "choose_action": {
+        "zh": "请选择操作\n        1. 退出登录\n        2. 退出程序\n        3. 注销账号：",
+        "en": "Please choose action\n        1. Logout\n        2. Exit program\n        3. Delete account:"
+    },
     "create_config_dir_error": {
         "zh": "创建配置文件夹错误",
         "en": "Create config dir error"
@@ -91,6 +99,10 @@
         "zh": "正在登录...",
         "en": "Logging in..."
     },
+    "logout_successful": {
+        "zh": "退出登录成功！",
+        "en": "Logout successful!"
+    },
     "map_convert_to_str_error": {
         "zh": "map转换为字符串错误",
         "en": "Map convert to str error"
@@ -110,6 +122,10 @@
     "password_cannot_be_empty": {
         "zh": "密码不能为空",
         "en": "Password cannot be empty"
+    },
+    "passwords_do_not_match": {
+        "zh": "密码不匹配",
+        "en": "Passwords do not match"
     },
     "password_prompt": {
         "zh": "密码：",
@@ -182,5 +198,33 @@
     "write_config_file_error": {
         "zh": "写入配置文件错误",
         "en": "Write config file error"
+    },
+    "delete_account_confirm": {
+        "zh": "确认要注销账号吗？此操作不可恢复！(y/n)：",
+        "en": "Are you sure you want to delete your account? This action cannot be undone! (y/n):"
+    },
+    "delete_account_failed": {
+        "zh": "注销账号失败: %s",
+        "en": "Delete account failed: %s"
+    },
+    "delete_account_failed_with_status": {
+        "zh": "注销账号失败，状态码: %d",
+        "en": "Delete account failed with status: %d"
+    },
+    "delete_account_request_failed": {
+        "zh": "注销账号请求失败: %v",
+        "en": "Delete account request failed: %v"
+    },
+    "delete_account_successful": {
+        "zh": "账号注销成功！",
+        "en": "Account deleted successfully!"
+    },
+    "deleting_account": {
+        "zh": "正在注销账号...",
+        "en": "Deleting account..."
+    },
+    "password_prompt_for_delete": {
+        "zh": "请输入密码以确认身份：",
+        "en": "Please enter password to confirm identity:"
     }
 }
