@@ -1,4 +1,8 @@
 {
+    "choose_login_method": {
+        "zh": "请选择登录方式\n        1. 登录\n        2. 注册\n        3. 退出：",
+        "en": "Please choose login method\n        1. Login\n        2. Register\n        3. Exit:"
+    },
     "connected_server": {
         "zh": "已连接服务器",
         "en": "Connected to server"
@@ -11,20 +15,172 @@
         "zh": "正在连接服务器",
         "en": "Connecting to server"
     },
+    "config_dir_is_not_dir": {
+        "zh": "配置文件夹不是文件夹",
+        "en": "Config dir is not a dir"
+    },
+    "create_config_dir_error": {
+        "zh": "创建配置文件夹错误",
+        "en": "Create config dir error"
+    },
+    "create_config_file_error": {
+        "zh": "创建配置文件错误",
+        "en": "Create config file error"
+    },
+    "created_config_dir": {
+        "zh": "配置文件夹不存在，已创建",
+        "en": "Config dir not exist, created"
+    },
+    "created_config_file": {
+        "zh": "文件不存在，已创建",
+        "en": "Config file not exist, created"
+    },
     "exit": {
         "zh": "退出",
         "en": "Exit"
+    },
+    "failed_to_extract_user_id": {
+        "zh": "从token提取用户ID失败: %v",
+        "en": "Failed to extract user_id from token: %v"
+    },
+    "failed_to_parse_login_response": {
+        "zh": "解析登录响应失败",
+        "en": "Failed to parse login response"
+    },
+    "failed_to_parse_register_response": {
+        "zh": "解析注册响应失败",
+        "en": "Failed to parse register response"
+    },
+    "failed_to_read_password": {
+        "zh": "读取密码失败",
+        "en": "Failed to read password"
+    },
+    "failed_to_read_username": {
+        "zh": "读取用户名失败",
+        "en": "Failed to read username"
     },
     "http_status_code_error": {
         "zh": "HTTP状态码错误",
         "en": "HTTP status code error"
     },
+    "invalid_token_format": {
+        "zh": "无效的token格式",
+        "en": "Invalid token format"
+    },
     "is_not_rich_chat_server": {
         "zh": "不是rich_chat服务器",
         "en": "Is not rich_chat server"
     },
+    "login_failed": {
+        "zh": "登录失败: %s",
+        "en": "Login failed: %s"
+    },
+    "login_failed_with_status": {
+        "zh": "登录失败，状态码: %d",
+        "en": "Login failed with status: %d"
+    },
+    "login_request_failed": {
+        "zh": "登录请求失败: %v",
+        "en": "Login request failed: %v"
+    },
+    "login_successful": {
+        "zh": "登录成功！",
+        "en": "Login successful!"
+    },
+    "logging_in": {
+        "zh": "正在登录...",
+        "en": "Logging in..."
+    },
+    "map_convert_to_str_error": {
+        "zh": "map转换为字符串错误",
+        "en": "Map convert to str error"
+    },
+    "no_token_received": {
+        "zh": "未收到服务器返回的token",
+        "en": "No token received from server"
+    },
+    "not_logged_in": {
+        "zh": "你还未登录",
+        "en": "You are not logged in"
+    },
+    "parse_config_file_error": {
+        "zh": "解析配置文件错误",
+        "en": "Parse config file error"
+    },
+    "password_cannot_be_empty": {
+        "zh": "密码不能为空",
+        "en": "Password cannot be empty"
+    },
+    "password_prompt": {
+        "zh": "密码：",
+        "en": "Password: "
+    },
+    "password_too_short": {
+        "zh": "密码长度推荐为至少8个字符，小于8个字符可能会带来安全风险",
+        "en": "Password must be at least 8 characters, less than 8 characters may bring security risk"
+    },
+    "read_config_file_error": {
+        "zh": "读取配置文件错误",
+        "en": "Read config file error"
+    },
+    "read_successfully": {
+        "zh": "读取成功",
+        "en": "Read successfully"
+    },
+    "reading_config": {
+        "zh": "正在读取配置文件",
+        "en": "Reading config file"
+    },
+    "register_failed": {
+        "zh": "注册失败: %s",
+        "en": "Register failed: %s"
+    },
+    "register_failed_with_status": {
+        "zh": "注册失败，状态码: %d",
+        "en": "Register failed with status: %d"
+    },
+    "register_request_failed": {
+        "zh": "注册请求失败: %v",
+        "en": "Register request failed: %v"
+    },
+    "register_successful": {
+        "zh": "注册成功！",
+        "en": "Register successful!"
+    },
+    "registering": {
+        "zh": "正在注册...",
+        "en": "Registering..."
+    },
+    "user_id_not_found": {
+        "zh": "用户ID未找到，已清空user_token",
+        "en": "User id not found, user_token cleared"
+    },
+    "user_id_or_token_not_string": {
+        "zh": "用户ID或token不是字符串，已清空user_token和user_id",
+        "en": "User id or token is not string, user_token and user_id cleared"
+    },
+    "username_already_exists": {
+        "zh": "用户名已存在",
+        "en": "Username already exists"
+    },
+    "username_cannot_be_empty": {
+        "zh": "用户名不能为空",
+        "en": "Username cannot be empty"
+    },
+    "username_prompt": {
+        "zh": "用户名：",
+        "en": "Username: "
+    },
+    "username_too_long": {
+        "zh": "用户名长度不能超过50个字符",
+        "en": "Username must not exceed 50 characters"
+    },
     "welcome": {
         "zh": "欢迎来到rich_chat cli",
         "en": "Welcome to rich_chat cli"
+    },
+    "write_config_file_error": {
+        "zh": "写入配置文件错误",
+        "en": "Write config file error"
     }
 }

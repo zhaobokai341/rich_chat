@@ -199,10 +199,6 @@ func (usr_data *UserInput) register() {
 	}
 
 	// Validate username length
-	if len(username) < 1 {
-		print("error", lp.G("username_too_short"))
-		return
-	}
 	if len(username) > 50 {
 		print("error", lp.G("username_too_long"))
 		return

@@ -1,8 +1,13 @@
 package main
 
 import (
+	"bufio"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"os"
 	"rich_chat/lang_pack_load"
+	"strings"
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/go-resty/resty/v2"
@@ -12,14 +17,16 @@ var lp *lang_pack_load.LanguagePack
 var requests *resty.Client
 
 const (
-	LANGUAGE = "zh"
-	URL_ROOT = "http://localhost:2316"
+	LANGUAGE = "zh"                                   // Language，你可以修改为zh
+	URL_ROOT = "http://admin:password@localhost:2316" // URL root
 )
 
+// output, user input and do something
 type UserInput struct {
-	Cookie string
+	user_data map[string]interface{}
 }
 
+// beautiful print
 func print(style_type string, text string) {
 	var character string
 	style := lipgloss.NewStyle()
@@ -47,6 +54,17 @@ func print(style_type string, text string) {
 	}
 }
 
+func input(text string) (string, error) {
+	fmt.Print(text)
+	reader := bufio.NewReader(os.Stdin)
+	input, err := reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return input, nil
+}
+
+// Initialize
 func initialize() {
 	lp = lang_pack_load.NewLanguagePack("client/main.json", LANGUAGE)
 	lp.Load()
@@ -54,29 +72,37 @@ func initialize() {
 	requests.SetHeader("User-Agent", "rich_chat 1.0.0")
 }
 
-func (usr_data *UserInput) check_server() bool {
-	print("info", lp.G("connecting_server"))
-	resp, err := requests.R().Get(URL_ROOT)
-	if err != nil {
-		print("error", lp.G("connection_error"))
-		return false
+// extractUserIDFromToken extracts the user_id from a JWT token
+func extractUserIDFromToken(token string) (string, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 {
+		return "", fmt.Errorf("invalid token format")
 	}
-	if resp.StatusCode() != 200 {
-		print("error", fmt.Sprintf("%s: %d", lp.G("http_status_code_error"), resp.StatusCode()))
-		return false
-	}
-	if resp.String() != "Welcome to Rich Chat!" {
-		print("error", lp.G("is_not_rich_chat_server"))
-		return false
-	}
-	print("success", lp.G("connected_server"))
-	return true
-}
 
-func (usr_data *UserInput) start() {
-	if !usr_data.check_server() {
-		print("info", lp.G("exit"))
-		return
+	// Decode the payload (second part)
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("failed to decode token payload: %v", err)
+	}
+
+	var claims map[string]interface{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("failed to parse token claims: %v", err)
+	}
+
+	userID, ok := claims["user_id"]
+	if !ok {
+		return "", fmt.Errorf("user_id not found in token")
+	}
+
+	// Convert to string
+	switch v := userID.(type) {
+	case float64:
+		return fmt.Sprintf("%.0f", v), nil
+	case string:
+		return v, nil
+	default:
+		return fmt.Sprintf("%v", v), nil
 	}
 }
 
@@ -87,6 +113,9 @@ func main() {
 		Bold(true).
 		Underline(true)
 	fmt.Println(title_style.Render(lp.G("welcome")))
-	usr_data := UserInput{}
+	usr_data := UserInput{
+		make(map[string]interface{}),
+	}
 	usr_data.start()
+	print("info", lp.G("exit"))
 }

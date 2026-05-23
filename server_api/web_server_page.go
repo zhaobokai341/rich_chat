@@ -149,7 +149,7 @@ func (api *WebServerApi) Register(c *gin.Context) {
 	}
 
 	// Validate username length
-	if len(username) < 1 || len(username) > 50 {
+	if len(username) > 50 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": "Username must be between 3 and 50 characters",
 		})
