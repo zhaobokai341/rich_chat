@@ -5,33 +5,10 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
 )
-
-// Generate a JWT token for a given user ID
-func generateToken(user_id int, valid_time time.Duration) (string, error) {
-	expirationTime := time.Now().Add(valid_time)
-
-	claims := &Claims{
-		UserID: user_id,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "rich_chat",
-		},
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(JWT_SECRET))
-	if err != nil {
-		return "", err
-	}
-
-	return tokenString, nil
-}
 
 // check client if it is safe
 func safe_check() gin.HandlerFunc {
