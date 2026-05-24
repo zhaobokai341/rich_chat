@@ -10,5 +10,6 @@ CREATE TABLE IF NOT EXISTS users (
     bio TEXT,
     password_hash VARCHAR(255) NOT NULL,
     registered_time TIMESTAMP,
-    last_login TIMESTAMP NOT NULL
+    last_login TIMESTAMP NOT NULL,
+    lock_until TIMESTAMP -- NULL means unlocked, timestamp means locked until this time
 );

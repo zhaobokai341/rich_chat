@@ -1,0 +1,66 @@
+{
+    "characters": {
+        "zh": "字符",
+        "en": " characters"
+    },
+    "internal_server_error": {
+        "zh": "服务器内部错误",
+        "en": "Internal server error"
+    },
+    "invalid_token": {
+        "zh": "无效的token",
+        "en": "Invalid token"
+    },
+    "invalid_user_id_format": {
+        "zh": "无效的用户ID格式",
+        "en": "Invalid user id format"
+    },
+    "invalid_user_id_or_password": {
+        "zh": "无效的用户ID或密码",
+        "en": "Invalid user id or password"
+    },
+    "length_of_username_must_less_than": {
+        "zh": "用户名长度必须小于",
+        "en": "Length of username must less than "
+    },
+    "registration_successful": {
+        "zh": "注册成功",
+        "en": "Registration successful"
+    },
+    "username_already_exists": {
+        "zh": "用户名已存在",
+        "en": "Username already exists"
+    },
+    "username_and_password_required": {
+        "zh": "用户名和密码是必须的",
+        "en": "Username and password are required"
+    },
+    "username_or_password_is_invalid": {
+        "zh": "用户名或密码无效",
+        "en": "Username or password is invalid"
+    },
+    "user_deleted_successfully": {
+        "zh": "用户删除成功",
+        "en": "User deleted successfully"
+    },
+    "user_not_exists": {
+        "zh": "用户不存在",
+        "en": "User not exists"
+    },
+    "user_password_required": {
+        "zh": "用户密码是必须的",
+        "en": "User password is required"
+    },
+    "verification_token_required": {
+        "zh": "需要验证令牌",
+        "en": "Verification token is required"
+    },
+    "invalid_or_expired_verification_token": {
+        "zh": "验证令牌无效或已过期",
+        "en": "Invalid or expired verification token"
+    },
+    "account_locked_try_later": {
+        "zh": "账户已被锁定，请稍后再试",
+        "en": "Account is locked, please try again later"
+    }
+}

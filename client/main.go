@@ -16,11 +16,6 @@ import (
 var lp *lang_pack_load.LanguagePack
 var requests *resty.Client
 
-const (
-	LANGUAGE = "zh"                                   // Language，你可以修改为zh
-	URL_ROOT = "http://admin:password@localhost:2316" // URL root
-)
-
 // output, user input and do something
 type UserInput struct {
 	user_data map[string]interface{}
@@ -73,7 +68,7 @@ func initialize() {
 	lp = lang_pack_load.NewLanguagePack("client/main.json", LANGUAGE)
 	lp.Load()
 	requests = resty.New()
-	requests.SetHeader("User-Agent", "rich_chat 1.0.0")
+	requests.SetHeader("User-Agent", USER_AGENT)
 }
 
 // extractUserIDFromToken extracts the user_id from a JWT token

@@ -10,7 +10,7 @@ import (
 // Check server if it's available
 func (usr_data *UserInput) check_server() bool {
 	print("info", lp.G("connecting_server"))
-	resp, err := requests.R().Get(URL_ROOT)
+	resp, err := requests.R().Get(url_root)
 	if err != nil {
 		print("error", lp.G("connection_error"))
 		return false
@@ -30,9 +30,9 @@ func (usr_data *UserInput) check_server() bool {
 // Load user config file
 func (usr_data *UserInput) read_config() {
 	print("info", lp.G("reading_config"))
-	dir_info, err := os.Stat("config")
+	dir_info, err := os.Stat(CONFIG_DIR)
 	if err != nil {
-		err = os.Mkdir("config", 0755)
+		err = os.Mkdir(CONFIG_DIR, 0755)
 		if err != nil {
 			print("error", lp.G("create_config_dir_error"))
 			os.Exit(1)
@@ -42,9 +42,10 @@ func (usr_data *UserInput) read_config() {
 		print("error", lp.G("config_dir_is_not_dir"))
 		os.Exit(1)
 	}
-	_, err = os.Stat("config/config.json")
+	full_path := fmt.Sprintf("%s/%s", CONFIG_DIR, CONFIG_FILE)
+	_, err = os.Stat(full_path)
 	if err != nil {
-		file, err := os.Create("config/config.json")
+		file, err := os.Create(full_path)
 		if err != nil {
 			print("error", lp.G("create_config_file_error"))
 			os.Exit(1)
@@ -57,7 +58,7 @@ func (usr_data *UserInput) read_config() {
 		}
 		defer file.Close()
 	}
-	file_data, err := os.ReadFile("config/config.json")
+	file_data, err := os.ReadFile(full_path)
 	if err != nil {
 		print("error", lp.G("read_config_file_error"))
 		os.Exit(1)
@@ -77,7 +78,7 @@ func (usr_data *UserInput) update_config() {
 		print("error", lp.G("map_convert_to_str_error"))
 		os.Exit(1)
 	}
-	err = os.WriteFile("config/config.json", json_bytes, 0644)
+	err = os.WriteFile(fmt.Sprintf("%s/%s", CONFIG_DIR, CONFIG_FILE), json_bytes, 0644)
 	if err != nil {
 		print("error", lp.G("write_config_file_error"))
 		os.Exit(1)

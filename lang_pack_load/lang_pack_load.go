@@ -13,8 +13,6 @@ type LanguagePack struct {
 }
 
 func NewLanguagePack(file string, language string) *LanguagePack {
-	// 模拟 Python 中的 os.path.join
-	// 假设运行目录与 Python 脚本位置一致，否则需要调整路径逻辑
 	fullPath := filepath.Join("../lang_pack/", file)
 
 	return &LanguagePack{

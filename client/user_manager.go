@@ -9,6 +9,36 @@ import (
 	"github.com/charmbracelet/x/term"
 )
 
+// Get verification token from server
+func (usr_data *UserInput) getVerifyToken() (string, error) {
+	print("info", lp.G("getting_verify_token"))
+	resp, err := requests.R().Post(fmt.Sprintf("%s/api/get_verify_token", url_root))
+	if err != nil {
+		return "", fmt.Errorf(lp.G("verify_token_request_failed"), err)
+	}
+
+	if resp.StatusCode() != 200 {
+		return "", fmt.Errorf("HTTP %d", resp.StatusCode())
+	}
+
+	var tokenResp map[string]interface{}
+	if err := json.Unmarshal(resp.Body(), &tokenResp); err != nil {
+		return "", fmt.Errorf("%s", lp.G("verify_token_parse_failed"))
+	}
+
+	verifyToken, exists := tokenResp["verify_token"]
+	if !exists {
+		return "", fmt.Errorf("no verify_token in response")
+	}
+
+	verifyTokenStr, ok := verifyToken.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid verify_token format")
+	}
+
+	return verifyTokenStr, nil
+}
+
 // Login to server
 func (usr_data *UserInput) login() {
 	// Get username
@@ -37,14 +67,22 @@ func (usr_data *UserInput) login() {
 		return
 	}
 
+	// Get verification token
+	verifyToken, err := usr_data.getVerifyToken()
+	if err != nil {
+		print("error", err.Error())
+		return
+	}
+
 	// Send login request
 	print("info", lp.G("logging_in"))
 	resp, err := requests.R().
 		SetFormData(map[string]string{
-			"username": username,
-			"password": password,
+			"username":     username,
+			"password":     password,
+			"verify_token": verifyToken,
 		}).
-		Post(fmt.Sprintf("%s/api/login", URL_ROOT))
+		Post(fmt.Sprintf("%s/api/login", url_root))
 
 	if err != nil {
 		print("error", fmt.Sprintf(lp.G("login_request_failed"), err))
@@ -55,6 +93,20 @@ func (usr_data *UserInput) login() {
 		var errorResp map[string]interface{}
 		if err := json.Unmarshal(resp.Body(), &errorResp); err == nil {
 			if msg, ok := errorResp["message"].(string); ok {
+				// Check for account locked message
+				if resp.StatusCode() == 429 {
+					print("error", lp.G("account_locked_try_later"))
+					return
+				}
+
+				// Show remaining attempts if available
+				if remaining, ok := errorResp["remaining_attempts"]; ok {
+					switch v := remaining.(type) {
+					case float64:
+						print("warning", fmt.Sprintf(lp.G("remaining_attempts"), int(v)))
+					}
+				}
+
 				print("error", fmt.Sprintf(lp.G("login_failed"), msg))
 			} else {
 				print("error", fmt.Sprintf(lp.G("login_failed_with_status"), resp.StatusCode()))
@@ -127,7 +179,7 @@ func (usr_data *UserInput) register() {
 	}
 
 	// Validate username length
-	if len(username) > 50 {
+	if len(username) > ALLOW_MAX_LENGTH_OF_USERNAME {
 		print("error", lp.G("username_too_long"))
 		return
 	}
@@ -173,14 +225,22 @@ func (usr_data *UserInput) register() {
 		print("error", lp.G("passwords_do_not_match"))
 	}
 
+	// Get verification token
+	verifyToken, err := usr_data.getVerifyToken()
+	if err != nil {
+		print("error", err.Error())
+		return
+	}
+
 	// Send register request
 	print("info", lp.G("registering"))
 	resp, err := requests.R().
 		SetFormData(map[string]string{
-			"username": username,
-			"password": password,
+			"username":     username,
+			"password":     password,
+			"verify_token": verifyToken,
 		}).
-		Post(fmt.Sprintf("%s/api/register", URL_ROOT))
+		Post(fmt.Sprintf("%s/api/register", url_root))
 
 	if err != nil {
 		print("error", fmt.Sprintf(lp.G("register_request_failed"), err))
@@ -194,6 +254,8 @@ func (usr_data *UserInput) register() {
 				// Check for specific error types
 				if resp.StatusCode() == 409 {
 					print("error", lp.G("username_already_exists"))
+				} else if resp.StatusCode() == 429 {
+					print("error", lp.G("account_locked_try_later"))
 				} else {
 					print("error", fmt.Sprintf(lp.G("register_failed"), msg))
 				}
@@ -303,14 +365,22 @@ func (usr_data *UserInput) deleteAccount() {
 		return
 	}
 
+	// Get verification token
+	verifyToken, err := usr_data.getVerifyToken()
+	if err != nil {
+		print("error", err.Error())
+		return
+	}
+
 	// Send delete account request
 	print("info", lp.G("deleting_account"))
 	resp, err := requests.R().
 		SetFormData(map[string]string{
 			"user_id":       usr_id_str,
 			"user_password": password,
+			"verify_token":  verifyToken,
 		}).
-		Post(fmt.Sprintf("%s/api/delete_user", URL_ROOT))
+		Post(fmt.Sprintf("%s/api/delete_user", url_root))
 
 	if err != nil {
 		print("error", fmt.Sprintf(lp.G("delete_account_request_failed"), err))
@@ -321,8 +391,16 @@ func (usr_data *UserInput) deleteAccount() {
 		var errorResp map[string]interface{}
 		if err := json.Unmarshal(resp.Body(), &errorResp); err == nil {
 			if msg, ok := errorResp["message"].(string); ok {
+				if resp.StatusCode() == 429 {
+					print("error", lp.G("account_locked_try_later"))
+					return
+				}
 				print("error", fmt.Sprintf(lp.G("delete_account_failed"), msg))
 			} else if errMsg, ok := errorResp["error"].(string); ok {
+				if resp.StatusCode() == 429 {
+					print("error", lp.G("account_locked_try_later"))
+					return
+				}
 				print("error", fmt.Sprintf(lp.G("delete_account_failed"), errMsg))
 			} else {
 				print("error", fmt.Sprintf(lp.G("delete_account_failed_with_status"), resp.StatusCode()))

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"rich_chat/lang_pack_load"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -22,6 +23,7 @@ type Claims struct {
 var web_server_engine *gin.Engine
 var web_server_api *WebServerApi
 var user_database *UserDatabase
+var lp *lang_pack_load.LanguagePack
 
 var log_func = map[string]func(v ...interface{}){
 	"info":  log.Info,
@@ -46,16 +48,19 @@ func log_with_ctx(c *gin.Context, log_type string, fmt_msg string, args ...inter
 }
 
 func initialize() {
+	lp = lang_pack_load.NewLanguagePack("server_api/main.json", LANGUAGE)
+	lp.Load()
 	web_server_engine = gin.Default()
 	web_server_api = &WebServerApi{}
 
+	web_server_engine.Use(safe_check())
 	web_server_engine.Use(gin.BasicAuth(gin.Accounts{
 		AUTH_USERNAME: AUTH_PASSWORD,
 	}))
-	web_server_engine.Use(safe_check())
 
 	// Routes
 	web_server_engine.GET("/", web_server_api.Index)
+	web_server_engine.POST("/api/get_verify_token", web_server_api.GetVerifyToken)
 	web_server_engine.POST("/api/login", web_server_api.Login)
 	web_server_engine.POST("/api/register", web_server_api.Register)
 	web_server_engine.POST("/api/delete_user", web_server_api.DeleteUser)
