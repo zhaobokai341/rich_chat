@@ -43,6 +43,10 @@
         "zh": "用户删除成功",
         "en": "User deleted successfully"
     },
+    "user_info": {
+        "zh": "用户信息",
+        "en": "User info"
+    },
     "user_not_exists": {
         "zh": "用户不存在",
         "en": "User not exists"
@@ -62,5 +66,9 @@
     "account_locked_try_later": {
         "zh": "账户已被锁定，请稍后再试",
         "en": "Account is locked, please try again later"
+    },
+    "user_info_fields_required": {
+        "zh": "用户信息字段是必须的",
+        "en": "User info fields are required"
     }
 }

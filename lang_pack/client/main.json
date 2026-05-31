@@ -28,8 +28,8 @@
         "en": "Confirm password:"
     },
     "choose_action": {
-        "zh": "请选择操作\n        1. 退出登录\n        2. 退出程序\n        3. 注销账号：",
-        "en": "Please choose action\n        1. Logout\n        2. Exit program\n        3. Delete account:"
+        "zh": "请选择操作\n        1. 退出程序\n        2. 查看/修改个人资料\n        3.修改密码\n        4. 退出登录\n        5. 注销账号：",
+        "en": "Please choose action\n        1. Exit program\n        2. Visit/Edit your profile\n        3.Change password\n        4. Logout\n        5. Delete account:"
     },
     "create_config_dir_error": {
         "zh": "创建配置文件夹错误",
@@ -247,8 +247,68 @@
         "zh": "账户已被锁定，请等待%d分钟后重试",
         "en": "Account is locked, please wait %d minutes before trying again"
     },
-    "remaining_attempts": {
-        "zh": "剩余尝试次数: %d",
-        "en": "Remaining attempts: %d"
+    "viewing_user_info": {
+        "zh": "正在获取用户信息...",
+        "en": "Getting user information..."
+    },
+    "user_info_request_failed": {
+        "zh": "获取用户信息请求失败: %v",
+        "en": "Failed to get user info request: %v"
+    },
+    "failed_to_parse_user_info_response": {
+        "zh": "解析用户信息响应失败",
+        "en": "Failed to parse user info response"
+    },
+    "user_info_title": {
+        "zh": "\n=== 用户信息 ===",
+        "en": "\n=== User Information ==="
+    },
+    "user_info_username": {
+        "zh": "用户名: %s",
+        "en": "Username: %s"
+    },
+    "user_info_nickname": {
+        "zh": "昵称: %s",
+        "en": "Nickname: %s"
+    },
+    "user_info_bio": {
+        "zh": "个人简介: %s",
+        "en": "Bio: %s"
+    },
+    "choose_info_to_modify": {
+        "zh": "\n请选择要修改的信息:\n        1. 昵称\n        2. 个人简介\n        3. 返回：",
+        "en": "\nPlease choose info to modify:\n        1. Nickname\n        2. Bio\n        3. Back:"
+    },
+    "enter_new_nickname": {
+        "zh": "请输入新的昵称：",
+        "en": "Please enter new nickname: "
+    },
+    "enter_new_bio": {
+        "zh": "请输入新的个人简介：",
+        "en": "Please enter new bio: "
+    },
+    "nickname_cannot_be_empty": {
+        "zh": "昵称不能为空",
+        "en": "Nickname cannot be empty"
+    },
+    "bio_cannot_be_empty": {
+        "zh": "个人简介不能为空",
+        "en": "Bio cannot be empty"
+    },
+    "modifying_user_info": {
+        "zh": "正在修改用户信息...",
+        "en": "Modifying user information..."
+    },
+    "user_info_change_request_failed": {
+        "zh": "修改用户信息请求失败: %v",
+        "en": "Failed to change user info request: %v"
+    },
+    "user_info_changed_successfully": {
+        "zh": "用户信息修改成功！",
+        "en": "User info changed successfully!"
+    },
+    "invalid_choice": {
+        "zh": "无效的选择",
+        "en": "Invalid choice"
     }
 }

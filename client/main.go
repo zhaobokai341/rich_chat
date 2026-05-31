@@ -1,120 +1,67 @@
 package main
 
 import (
-	"bufio"
-	"encoding/base64"
-	"encoding/json"
-	"fmt"
-	"os"
-	"rich_chat/lang_pack_load"
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
-	"github.com/go-resty/resty/v2"
 )
 
-var lp *lang_pack_load.LanguagePack
-var requests *resty.Client
-
-// output, user input and do something
-type UserInput struct {
-	user_data map[string]interface{}
+// Application holds all dependencies for the client application
+type Application struct {
+	apiClient    APIClient
+	configMgr    ConfigManager
+	authService  *AuthService
+	userService  *UserService
+	uiHandler    *UIHandler
+	languagePack *LanguagePackWrapper
 }
 
-// beautiful print
-func print(style_type string, text string) {
-	var character string
-	style := lipgloss.NewStyle()
-	switch style_type {
-	case "info":
-		style = style.Foreground(lipgloss.Color("#3B82F6")) // Blue
-		character = "[*]"
-	case "warning":
-		style = style.Foreground(lipgloss.Color("#EAB308")) // Yellow
-		character = "[!]"
-	case "error":
-		style = style.Foreground(lipgloss.Color("#EF4444")) // Red
-		character = "[-]"
-	case "success":
-		style = style.Foreground(lipgloss.Color("#22C55E")) // Green
-		character = "[+]"
-	case "critical":
-		style = style.Foreground(lipgloss.Color("#EF4444")) // Red
-		character = "[!!!]"
-	case "debug":
-		style = style.Foreground(lipgloss.Color("#8b7e7e")) // Grey
-		character = "[DEBUG]"
-	}
-	format_text := style.Render(fmt.Sprintf("%s %s", character, text))
-	fmt.Println(format_text)
-	if style_type == "critical" {
-		panic(text)
-	}
-}
+// NewApplication creates and initializes a new application instance
+func NewApplication() *Application {
+	// Initialize language pack
+	lp := NewLanguagePackWrapper("client/main.json", LANGUAGE)
 
-// simplify user input
-func input(text string) (string, error) {
-	fmt.Print(text)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return input, nil
-}
+	// Initialize HTTP client
+	httpClient := NewHTTPClient(USER_AGENT)
 
-// Initialize
-func initialize() {
-	lp = lang_pack_load.NewLanguagePack("client/main.json", LANGUAGE)
-	lp.Load()
-	requests = resty.New()
-	requests.SetHeader("User-Agent", USER_AGENT)
-}
+	// Initialize API client
+	baseURL := url_root
+	apiClient := NewRestAPIClient(httpClient, baseURL, lp)
 
-// extractUserIDFromToken extracts the user_id from a JWT token
-func extractUserIDFromToken(token string) (string, error) {
-	parts := strings.Split(token, ".")
-	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid token format")
-	}
+	// Initialize config manager
+	configMgr := NewFileConfigManager(CONFIG_DIR, CONFIG_FILE)
 
-	// Decode the payload (second part)
-	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
-	if err != nil {
-		return "", fmt.Errorf("failed to decode token payload: %v", err)
-	}
+	// Initialize token extractor
+	tokenExtractor := NewJWTTokenExtractor()
 
-	var claims map[string]interface{}
-	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("failed to parse token claims: %v", err)
-	}
+	// Initialize services
+	authService := NewAuthService(apiClient, configMgr, tokenExtractor)
+	userService := NewUserService(apiClient, configMgr, tokenExtractor)
 
-	userID, ok := claims["user_id"]
-	if !ok {
-		return "", fmt.Errorf("user_id not found in token")
-	}
+	// Initialize UI handler
+	uiHandler := NewUIHandler(authService, userService, apiClient, configMgr, lp)
 
-	// Convert to string
-	switch v := userID.(type) {
-	case float64:
-		return fmt.Sprintf("%.0f", v), nil
-	case string:
-		return v, nil
-	default:
-		return fmt.Sprintf("%v", v), nil
+	return &Application{
+		apiClient:    apiClient,
+		configMgr:    configMgr,
+		authService:  authService,
+		userService:  userService,
+		uiHandler:    uiHandler,
+		languagePack: lp,
 	}
 }
 
-func main() {
-	initialize()
+// Run starts the application
+func (app *Application) Run() {
 	title_style := lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#d0f112")).
 		Bold(true).
 		Underline(true)
-	fmt.Println(title_style.Render(lp.G("welcome")))
-	usr_data := UserInput{
-		make(map[string]interface{}),
-	}
-	usr_data.start()
-	print("info", lp.G("exit"))
+
+	println(title_style.Render(app.languagePack.Get("welcome")))
+	app.uiHandler.Start()
+	print("info", app.languagePack.Get("exit"))
+}
+
+func main() {
+	app := NewApplication()
+	app.Run()
 }

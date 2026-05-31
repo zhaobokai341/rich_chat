@@ -1,32 +1,56 @@
+# Environment variables - NEVER commit these
+.env
+*.env
+.env.local
+.env.production
+
 # General
 draft/
 something/
 client/config
+client/rich_chat_client
+server_api/rich_chat_server
 
 # Dependencies
-*.log
 *.pid
-*.env
 
 # Go
-go.mod
-go.sum
 /server_api/vendor/
 /client/vendor/
-/server_api/*.exe
-/client/*.exe
+/bin/
+/pkg/
+
+# Build outputs
+server_api/server_api
+client/client
+*.exe
+*.dll
+*.so
 
 # Node
 /server_web/node_modules/
 /server_web/dist/
 
-# IDE
+# Logs
+*.log
+logs/
+
+# Database files
+*.db
+*.sqlite
+
+# Temporary files
+tmp/
+temp/
+
+# IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
