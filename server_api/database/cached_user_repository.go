@@ -234,6 +234,18 @@ func (c *CachedUserRepository) UpdateProfile(userID int, key, value string) erro
 	return nil
 }
 
+// UpdatePassword updates user password and invalidates cache
+func (c *CachedUserRepository) UpdatePassword(userID int, newPasswordHash string) error {
+	err := c.repo.UpdatePassword(userID, newPasswordHash)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate password hash cache
+	c.cache.Delete(fmt.Sprintf("user:hash:%d", userID))
+	return nil
+}
+
 // UpdateLastLogin updates last login timestamp
 func (c *CachedUserRepository) UpdateLastLogin(userID int) error {
 	return c.repo.UpdateLastLogin(userID)

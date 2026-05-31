@@ -28,8 +28,8 @@
         "en": "Confirm password:"
     },
     "choose_action": {
-        "zh": "请选择操作\n        1. 退出程序\n        2. 查看/修改个人资料\n        3.修改密码\n        4. 退出登录\n        5. 注销账号：",
-        "en": "Please choose action\n        1. Exit program\n        2. Visit/Edit your profile\n        3.Change password\n        4. Logout\n        5. Delete account:"
+        "zh": "请选择操作\n        1. 退出程序\n        2. 查看/修改个人资料\n        3. 修改密码\n        4. 退出登录\n        5. 注销账号：",
+        "en": "Please choose action\n        1. Exit program\n        2. Visit/Edit your profile\n        3. Change password\n        4. Logout\n        5. Delete account:"
     },
     "create_config_dir_error": {
         "zh": "创建配置文件夹错误",
@@ -310,5 +310,49 @@
     "invalid_choice": {
         "zh": "无效的选择",
         "en": "Invalid choice"
+    },
+    "password_change_request_failed": {
+        "zh": "修改密码请求失败: %v",
+        "en": "Failed to change password request: %v"
+    },
+    "password_change_failed": {
+        "zh": "修改密码失败: %s",
+        "en": "Password change failed: %s"
+    },
+    "password_change_failed_with_status": {
+        "zh": "修改密码失败，状态码: %d",
+        "en": "Password change failed with status: %d"
+    },
+    "password_changed_successfully": {
+        "zh": "密码修改成功！",
+        "en": "Password changed successfully!"
+    },
+    "changing_password": {
+        "zh": "正在修改密码...",
+        "en": "Changing password..."
+    },
+    "enter_old_password": {
+        "zh": "请输入旧密码：",
+        "en": "Please enter old password: "
+    },
+    "enter_new_password": {
+        "zh": "请输入新密码：",
+        "en": "Please enter new password: "
+    },
+    "confirm_new_password": {
+        "zh": "请确认新密码：",
+        "en": "Please confirm new password: "
+    },
+    "new_password_cannot_be_empty": {
+        "zh": "新密码不能为空",
+        "en": "New password cannot be empty"
+    },
+    "old_password_cannot_be_empty": {
+        "zh": "旧密码不能为空",
+        "en": "Old password cannot be empty"
+    },
+    "new_passwords_do_not_match": {
+        "zh": "两次输入的新密码不一致",
+        "en": "New passwords do not match"
     }
 }

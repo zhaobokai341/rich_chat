@@ -12,6 +12,7 @@ type MockAPIClient struct {
 	DeleteUserFunc       func(userID, password, verifyToken string) error
 	GetUserProfileFunc   func(userID, verifyToken string) (*UserInfoResponse, error)
 	UpdateUserProfileFunc func(userID, key, value, verifyToken string) error
+	ChangePasswordFunc    func(userID, oldPassword, newPassword, verifyToken string) error
 	CheckServerHealthFunc func() (bool, error)
 }
 
@@ -59,6 +60,13 @@ func (m *MockAPIClient) GetUserProfile(userID, verifyToken string) (*UserInfoRes
 func (m *MockAPIClient) UpdateUserProfile(userID, key, value, verifyToken string) error {
 	if m.UpdateUserProfileFunc != nil {
 		return m.UpdateUserProfileFunc(userID, key, value, verifyToken)
+	}
+	return nil
+}
+
+func (m *MockAPIClient) ChangePassword(userID, oldPassword, newPassword, verifyToken string) error {
+	if m.ChangePasswordFunc != nil {
+		return m.ChangePasswordFunc(userID, oldPassword, newPassword, verifyToken)
 	}
 	return nil
 }

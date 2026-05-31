@@ -117,6 +117,7 @@ func initialize() {
 	web_server_engine.POST("/api/users/:user_id/delete", web_server_api.DeleteUser)
 	web_server_engine.GET("/api/users/:user_id/profile", web_server_api.GetUserProfile)
 	web_server_engine.PATCH("/api/users/:user_id/profile", web_server_api.ChangeUserProfile)
+	web_server_engine.PUT("/api/users/:user_id/password", web_server_api.ChangeUserPassword)
 }
 
 func main() {

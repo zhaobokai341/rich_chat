@@ -20,8 +20,8 @@ var (
 
 // LoginRequest represents login credentials
 type LoginRequest struct {
-	Username   string
-	Password   string
+	Username    string
+	Password    string
 	VerifyToken string
 }
 
@@ -58,6 +58,14 @@ type DeleteUserRequest struct {
 	VerifyToken string
 }
 
+// ChangePasswordRequest represents password change request
+type ChangePasswordRequest struct {
+	UserID      int
+	OldPassword string
+	NewPassword string
+	VerifyToken string
+}
+
 // AuthService defines authentication operations
 type AuthService interface {
 	Login(ctx context.Context, req *LoginRequest) (*LoginResponse, error)
@@ -71,6 +79,7 @@ type AuthService interface {
 type UserService interface {
 	GetUserProfile(ctx context.Context, userID int) (*database.UserInfo, error)
 	UpdateUserProfile(ctx context.Context, req *UserProfileUpdateRequest) error
+	ChangeUserPassword(ctx context.Context, req *ChangePasswordRequest) error
 	DeleteUser(ctx context.Context, req *DeleteUserRequest) error
 	CheckAccountLocked(identifier string) bool
 	CheckUserExists(userID int) (bool, error)

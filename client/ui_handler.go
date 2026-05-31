@@ -131,6 +131,8 @@ func (h *UIHandler) showMainMenu() {
 			os.Exit(0)
 		case "2":
 			h.viewAndModifyUserInfo()
+		case "3":
+			h.handleChangePassword()
 		case "4":
 			h.handleLogout()
 			return
@@ -336,6 +338,77 @@ func (h *UIHandler) modifyUserInfo() {
 			h.printError("invalid_choice")
 		}
 	}
+}
+
+// handleChangePassword manages the password change flow
+func (h *UIHandler) handleChangePassword() {
+	// Get old password
+	fmt.Print(h.languagePack.Get("enter_old_password"))
+	oldPasswordBytes, err := term.ReadPassword(os.Stdin.Fd())
+	if err != nil {
+		h.printError("failed_to_read_password")
+		return
+	}
+	fmt.Println()
+	oldPassword := string(oldPasswordBytes)
+	
+	if oldPassword == "" {
+		h.printError("old_password_cannot_be_empty")
+		return
+	}
+
+	// Get new password
+	var newPassword string
+	for {
+		fmt.Print(h.languagePack.Get("enter_new_password"))
+		newPasswordBytes, err := term.ReadPassword(os.Stdin.Fd())
+		if err != nil {
+			h.printError("failed_to_read_password")
+			return
+		}
+		fmt.Println()
+		newPassword = string(newPasswordBytes)
+
+		if newPassword == "" {
+			h.printError("new_password_cannot_be_empty")
+			continue
+		}
+
+		if len(newPassword) < 8 {
+			h.printWarning("password_too_short")
+		}
+
+		// Confirm new password
+		fmt.Print(h.languagePack.Get("confirm_new_password"))
+		confirmPasswordBytes, err := term.ReadPassword(os.Stdin.Fd())
+		if err != nil {
+			h.printError("failed_to_read_password")
+			return
+		}
+		fmt.Println()
+		confirmPassword := string(confirmPasswordBytes)
+
+		if confirmPassword == "" {
+			h.printError("new_password_cannot_be_empty")
+			continue
+		}
+
+		if newPassword != confirmPassword {
+			h.printError("new_passwords_do_not_match")
+			continue
+		}
+
+		break
+	}
+
+	// Change password
+	h.printInfo("changing_password")
+	if err := h.userService.ChangePassword(oldPassword, newPassword); err != nil {
+		h.printError(err)
+		return
+	}
+
+	h.printSuccess("password_changed_successfully")
 }
 
 // readPassword securely reads a password from terminal

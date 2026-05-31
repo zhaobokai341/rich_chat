@@ -14,6 +14,7 @@ type APIClient interface {
 	DeleteUser(userID, password, verifyToken string) error
 	GetUserProfile(userID, verifyToken string) (*UserInfoResponse, error)
 	UpdateUserProfile(userID, key, value, verifyToken string) error
+	ChangePassword(userID, oldPassword, newPassword, verifyToken string) error
 	CheckServerHealth() (bool, error)
 }
 
@@ -274,6 +275,41 @@ func (c *RestAPIClient) UpdateUserProfile(userID, key, value, verifyToken string
 			}
 		}
 		return fmt.Errorf(c.languagePack.Get("user_info_change_failed_with_status"), resp.StatusCode())
+	}
+
+	return nil
+}
+
+// ChangePassword changes the user's password
+func (c *RestAPIClient) ChangePassword(userID, oldPassword, newPassword, verifyToken string) error {
+	resp, err := c.client.R().
+		SetFormData(map[string]string{
+			"verify_token": verifyToken,
+			"old_password": oldPassword,
+			"new_password": newPassword,
+		}).
+		Put(fmt.Sprintf("%s/api/users/%s/password", c.baseURL, userID))
+
+	if err != nil {
+		return fmt.Errorf(c.languagePack.Get("password_change_request_failed"), err)
+	}
+
+	if resp.StatusCode() == 429 {
+		return errors.New(c.languagePack.Get("account_locked_try_later"))
+	}
+
+	if resp.StatusCode() != 200 {
+		var errorResp ErrorResponse
+		if err := json.Unmarshal(resp.Body(), &errorResp); err == nil {
+			msg := errorResp.Message
+			if msg == "" {
+				msg = errorResp.Error
+			}
+			if msg != "" {
+				return fmt.Errorf(c.languagePack.Get("password_change_failed"), msg)
+			}
+		}
+		return fmt.Errorf(c.languagePack.Get("password_change_failed_with_status"), resp.StatusCode())
 	}
 
 	return nil

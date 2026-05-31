@@ -257,3 +257,84 @@ func TestUserService_UpdateProfile(t *testing.T) {
 		})
 	}
 }
+
+func TestUserService_ChangePassword(t *testing.T) {
+	tests := []struct {
+		name          string
+		oldPassword   string
+		newPassword   string
+		mockSetup     func(*MockAPIClient, *MockConfigManager)
+		expectedError bool
+	}{
+		{
+			name:        "successful password change",
+			oldPassword: "oldpassword123",
+			newPassword: "newpassword456",
+			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
+				config.SetUserID("1")
+				api.ChangePasswordFunc = func(userID, oldPassword, newPassword, verifyToken string) error {
+					return nil
+				}
+			},
+			expectedError: false,
+		},
+		{
+			name:        "change fails - wrong old password",
+			oldPassword: "wrongpassword",
+			newPassword: "newpassword456",
+			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
+				config.SetUserID("1")
+				api.ChangePasswordFunc = func(userID, oldPassword, newPassword, verifyToken string) error {
+					return errors.New("invalid old password")
+				}
+			},
+			expectedError: true,
+		},
+		{
+			name:        "change fails - missing user ID",
+			oldPassword: "oldpassword123",
+			newPassword: "newpassword456",
+			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
+				// Don't set user ID
+			},
+			expectedError: true,
+		},
+		{
+			name:        "change fails - new password too short",
+			oldPassword: "oldpassword123",
+			newPassword: "short",
+			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
+				config.SetUserID("1")
+				api.ChangePasswordFunc = func(userID, oldPassword, newPassword, verifyToken string) error {
+					return errors.New("password too short")
+				}
+			},
+			expectedError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockAPI := &MockAPIClient{}
+			mockConfig := NewMockConfigManager()
+			mockExtractor := &MockTokenExtractor{}
+
+			if tt.mockSetup != nil {
+				tt.mockSetup(mockAPI, mockConfig)
+			}
+
+			service := NewUserService(mockAPI, mockConfig, mockExtractor)
+			err := service.ChangePassword(tt.oldPassword, tt.newPassword)
+
+			if tt.expectedError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Expected no error but got: %v", err)
+				}
+			}
+		})
+	}
+}

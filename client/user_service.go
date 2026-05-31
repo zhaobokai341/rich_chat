@@ -88,6 +88,25 @@ func (s *UserService) UpdateProfile(key, value string) error {
 	return nil
 }
 
+// ChangePassword changes the user's password
+func (s *UserService) ChangePassword(oldPassword, newPassword string) error {
+	userID, exists := s.configMgr.GetUserID()
+	if !exists {
+		return fmt.Errorf("user_id_not_found")
+	}
+
+	verifyToken, err := s.apiClient.GetVerifyToken()
+	if err != nil {
+		return fmt.Errorf("getting_verify_token_failed: %w", err)
+	}
+
+	if err := s.apiClient.ChangePassword(userID, oldPassword, newPassword, verifyToken); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // getUserData returns current user data from config manager
 func (s *UserService) getUserData() map[string]interface{} {
 	data, _ := s.configMgr.ReadConfig()

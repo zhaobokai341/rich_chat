@@ -24,10 +24,10 @@ func TestCachedUserRepository_CreateUser(t *testing.T) {
 		setupMocks    func()
 	}{
 		{
-			name:         "successful user creation",
-			username:     "testuser",
-			passwordHash: "$2a$10$hashedpassword",
-			expectedID:   1,
+			name:          "successful user creation",
+			username:      "testuser",
+			passwordHash:  "$2a$10$hashedpassword",
+			expectedID:    1,
 			expectedError: nil,
 			setupMocks: func() {
 				mockRepo.On("CreateUser", "testuser", "$2a$10$hashedpassword").Return(1, nil)
@@ -37,10 +37,10 @@ func TestCachedUserRepository_CreateUser(t *testing.T) {
 			},
 		},
 		{
-			name:         "creation failure",
-			username:     "duplicateuser",
-			passwordHash: "$2a$10$hashedpassword",
-			expectedID:   0,
+			name:          "creation failure",
+			username:      "duplicateuser",
+			passwordHash:  "$2a$10$hashedpassword",
+			expectedID:    0,
 			expectedError: errors.New("duplicate key"),
 			setupMocks: func() {
 				mockRepo.On("CreateUser", "duplicateuser", "$2a$10$hashedpassword").Return(0, errors.New("duplicate key"))
@@ -51,9 +51,9 @@ func TestCachedUserRepository_CreateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			id, err := cachedRepo.CreateUser(tt.username, tt.passwordHash)
-			
+
 			assert.Equal(t, tt.expectedID, id)
 			if tt.expectedError != nil {
 				assert.Error(t, err)
@@ -61,7 +61,7 @@ func TestCachedUserRepository_CreateUser(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 			mockCache.AssertExpectations(t)
 		})
@@ -140,9 +140,9 @@ func TestCachedUserRepository_FindByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			user, err := cachedRepo.FindByID(tt.userID)
-			
+
 			if tt.expectedUser != nil {
 				assert.NotNil(t, user)
 				assert.Equal(t, tt.expectedUser.ID, user.ID)
@@ -150,13 +150,13 @@ func TestCachedUserRepository_FindByID(t *testing.T) {
 			} else {
 				assert.Nil(t, user)
 			}
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 			mockCache.AssertExpectations(t)
 		})
@@ -230,9 +230,9 @@ func TestCachedUserRepository_FindByUsername(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			user, err := cachedRepo.FindByUsername(tt.username)
-			
+
 			if tt.expectedUser != nil {
 				assert.NotNil(t, user)
 				assert.Equal(t, tt.expectedUser.ID, user.ID)
@@ -240,13 +240,13 @@ func TestCachedUserRepository_FindByUsername(t *testing.T) {
 			} else {
 				assert.Nil(t, user)
 			}
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 			mockCache.AssertExpectations(t)
 		})
@@ -310,16 +310,16 @@ func TestCachedUserRepository_ExistsByID(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			exists, err := cachedRepo.ExistsByID(tt.userID)
-			
+
 			assert.Equal(t, tt.expectedExist, exists)
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 			mockCache.AssertExpectations(t)
 		})
@@ -387,9 +387,9 @@ func TestCachedUserRepository_GetUserProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			info, err := cachedRepo.GetUserProfile(tt.userID)
-			
+
 			if tt.expectedInfo != nil {
 				assert.NotNil(t, info)
 				assert.Equal(t, tt.expectedInfo.Username, info.Username)
@@ -397,13 +397,13 @@ func TestCachedUserRepository_GetUserProfile(t *testing.T) {
 			} else {
 				assert.Nil(t, info)
 			}
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 			mockCache.AssertExpectations(t)
 		})
@@ -459,15 +459,15 @@ func TestCachedUserRepository_DeleteUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			err := cachedRepo.DeleteUser(tt.userID)
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockRepo.AssertExpectations(t)
 			mockCache.AssertExpectations(t)
 		})
@@ -485,7 +485,7 @@ func TestRedisTokenRepository_StoreVerifyToken(t *testing.T) {
 	mockCache.On("SetWithTTL", "verify_token:"+token, "valid", 300).Once()
 
 	err := repo.StoreVerifyToken(token, ttl)
-	
+
 	assert.NoError(t, err)
 	mockCache.AssertExpectations(t)
 }
@@ -536,16 +536,16 @@ func TestRedisTokenRepository_VerifyAndConsumeToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			valid, err := repo.VerifyAndConsumeToken(tt.token)
-			
+
 			assert.Equal(t, tt.expectedValid, valid)
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockCache.AssertExpectations(t)
 		})
 	}
@@ -608,15 +608,15 @@ func TestRedisRateLimitRepository_TrackLoginAttempt(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			err := repo.TrackLoginAttempt(tt.identifier, tt.success)
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockCache.AssertExpectations(t)
 			mockUserRepo.AssertExpectations(t)
 		})
@@ -686,16 +686,16 @@ func TestRedisRateLimitRepository_CheckAccountLocked(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			locked, err := repo.CheckAccountLocked(tt.identifier)
-			
+
 			assert.Equal(t, tt.expectedLock, locked)
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockCache.AssertExpectations(t)
 			mockUserRepo.AssertExpectations(t)
 		})
@@ -773,7 +773,7 @@ func TestRedisRateLimitRepository_BlockIP(t *testing.T) {
 	mockCache.On("Delete", "ip_not_blocked:192.168.1.100").Once()
 
 	err := repo.BlockIP(ip, reason, duration)
-	
+
 	assert.NoError(t, err)
 	mockCache.AssertExpectations(t)
 }

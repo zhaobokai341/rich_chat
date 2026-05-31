@@ -21,6 +21,7 @@ type UserRepository interface {
 	UpdateProfile(userID int, key, value string) error
 	UpdateLastLogin(userID int) error
 	UpdateLockStatus(identifier string, lockUntil *time.Time) error
+	UpdatePassword(userID int, newPasswordHash string) error
 
 	// Delete operations
 	DeleteUser(userID int) error

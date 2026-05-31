@@ -160,6 +160,18 @@ func (r *PostgresUserRepository) UpdateLockStatus(identifier string, lockUntil *
 	return nil
 }
 
+// UpdatePassword updates the user's password
+func (r *PostgresUserRepository) UpdatePassword(userID int, newPasswordHash string) error {
+	_, err := r.db.Exec(
+		"UPDATE users SET password_hash = $1 WHERE id = $2",
+		newPasswordHash, userID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update password for user ID %d: %w", userID, err)
+	}
+	return nil
+}
+
 // DeleteUser removes a user from the database
 func (r *PostgresUserRepository) DeleteUser(userID int) error {
 	_, err := r.db.Exec("DELETE FROM users WHERE id = $1", userID)

@@ -47,7 +47,7 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 			expectedError: nil,
 			setupMocks: func() {
 				passwordHash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
-				
+
 				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "testuser").Return(false, nil)
 				mockUserRepo.On("FindByUsername", "testuser").Return(&database.User{
@@ -125,7 +125,7 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 			expectedError: ErrInvalidPassword,
 			setupMocks: func() {
 				passwordHash, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
-				
+
 				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "testuser").Return(false, nil)
 				mockUserRepo.On("FindByUsername", "testuser").Return(&database.User{
@@ -141,9 +141,9 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			resp, err := authService.Login(context.Background(), tt.request)
-			
+
 			if tt.expectedResp != nil {
 				assert.NotNil(t, resp)
 				assert.Equal(t, tt.expectedResp.UserID, resp.UserID)
@@ -151,7 +151,7 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 			} else {
 				assert.Nil(t, resp)
 			}
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				// Check if error is or contains the expected error
@@ -161,7 +161,7 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockUserRepo.AssertExpectations(t)
 			mockRateLimitRepo.AssertExpectations(t)
 			mockTokenService.AssertExpectations(t)
@@ -269,9 +269,9 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			resp, err := authService.Register(context.Background(), tt.request)
-			
+
 			if tt.expectedResp != nil {
 				assert.NotNil(t, resp)
 				assert.Equal(t, tt.expectedResp.UserID, resp.UserID)
@@ -279,14 +279,14 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			} else {
 				assert.Nil(t, resp)
 			}
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockUserRepo.AssertExpectations(t)
 			mockTokenService.AssertExpectations(t)
 		})
@@ -358,9 +358,9 @@ func TestUserServiceImpl_GetUserProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			info, err := userService.GetUserProfile(context.Background(), tt.userID)
-			
+
 			if tt.expectedInfo != nil {
 				assert.NotNil(t, info)
 				assert.Equal(t, tt.expectedInfo.Username, info.Username)
@@ -369,14 +369,14 @@ func TestUserServiceImpl_GetUserProfile(t *testing.T) {
 			} else {
 				assert.Nil(t, info)
 			}
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockUserRepo.AssertExpectations(t)
 		})
 	}
@@ -458,16 +458,16 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			err := userService.UpdateUserProfile(context.Background(), tt.request)
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.expectedError.Error())
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockUserRepo.AssertExpectations(t)
 		})
 	}
@@ -491,7 +491,7 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 			expectedError: nil,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
 				passwordHash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
-				
+
 				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
 				mockUserRepo.On("FindByID", 1).Return(&database.User{
 					ID:           1,
@@ -548,7 +548,7 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 			expectedError: ErrInvalidPassword,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
 				passwordHash, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
-				
+
 				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
 				mockUserRepo.On("FindByID", 1).Return(&database.User{
 					ID:           1,
@@ -565,18 +565,18 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
 			userService := NewUserService(mockUserRepo, mockRateLimitRepo)
-			
+
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
-			
+
 			err := userService.DeleteUser(context.Background(), tt.request)
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				assert.Equal(t, tt.expectedError, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockUserRepo.AssertExpectations(t)
 			mockRateLimitRepo.AssertExpectations(t)
 		})
@@ -596,7 +596,7 @@ func TestTokenServiceImpl_GenerateJWT(t *testing.T) {
 	tokenService := NewTokenService(jwtConfig, mockTokenRepo)
 
 	token, err := tokenService.GenerateJWT(1, time.Hour*24)
-	
+
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 	assert.IsType(t, "", token)
@@ -615,7 +615,7 @@ func TestTokenServiceImpl_GenerateVerificationToken(t *testing.T) {
 	tokenService := NewTokenService(jwtConfig, mockTokenRepo)
 
 	token, err := tokenService.GenerateVerificationToken()
-	
+
 	assert.NoError(t, err)
 	assert.NotEmpty(t, token)
 	assert.Len(t, token, 64) // 32 bytes = 64 hex characters
@@ -639,7 +639,7 @@ func TestTokenServiceImpl_StoreVerificationToken(t *testing.T) {
 	mockTokenRepo.On("StoreVerifyToken", token, ttl).Return(nil)
 
 	err := tokenService.StoreVerificationToken(token, ttl)
-	
+
 	assert.NoError(t, err)
 	mockTokenRepo.AssertExpectations(t)
 }
@@ -697,9 +697,9 @@ func TestTokenServiceImpl_ValidateAndConsumeToken(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			err := tokenService.ValidateAndConsumeToken(tt.token)
-			
+
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 				if tt.name == "repository error" {
@@ -710,7 +710,7 @@ func TestTokenServiceImpl_ValidateAndConsumeToken(t *testing.T) {
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockTokenRepo.AssertExpectations(t)
 		})
 	}
@@ -815,16 +815,16 @@ func TestUserServiceImpl_CheckUserExists(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.setupMocks()
-			
+
 			exists, err := userService.CheckUserExists(tt.userID)
-			
+
 			assert.Equal(t, tt.expectedExist, exists)
 			if tt.expectedError != nil {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
 			}
-			
+
 			mockUserRepo.AssertExpectations(t)
 		})
 	}

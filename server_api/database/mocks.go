@@ -65,6 +65,11 @@ func (m *MockUserRepository) UpdateLockStatus(identifier string, lockUntil *time
 	return args.Error(0)
 }
 
+func (m *MockUserRepository) UpdatePassword(userID int, newPasswordHash string) error {
+	args := m.Called(userID, newPasswordHash)
+	return args.Error(0)
+}
+
 func (m *MockUserRepository) DeleteUser(userID int) error {
 	args := m.Called(userID)
 	return args.Error(0)

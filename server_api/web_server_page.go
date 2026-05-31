@@ -215,3 +215,48 @@ func (api *WebServerApi) ChangeUserProfile(c *gin.Context) {
 		"message": lp.G("user_info_changed_successfully"),
 	})
 }
+
+// Change user password
+func (api *WebServerApi) ChangeUserPassword(c *gin.Context) {
+	// Parse user_id from URL parameter
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_user_id_format"),
+		})
+		return
+	}
+
+	// Validate verification token
+	verifyToken := c.PostForm("verify_token")
+	if err := api.tokenService.ValidateAndConsumeToken(verifyToken); err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	old_password := c.PostForm("old_password")
+	new_password := c.PostForm("new_password")
+
+	// Parse request
+	req := &service.ChangePasswordRequest{
+		UserID:      userID,
+		OldPassword: old_password,
+		NewPassword: new_password,
+	}
+
+	// Call service
+	err = api.userService.ChangeUserPassword(c.Request.Context(), req)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	// Return success response
+	log.WithFields(log.Fields{
+		"user_id": userID,
+	}).Info("User password changed successfully")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": lp.G("user_password_changed_successfully"),
+	})
+}

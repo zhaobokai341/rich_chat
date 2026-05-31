@@ -55,7 +55,7 @@ const (
 // Rate limiting configuration variables
 const (
 	IP_LIMIT_TIME             = time.Minute * 10 // Time window for IP rate limiting (1 minute)
-	IP_LIMIT_VISIT_TIMES      = 1000             // Maximum visits per IP within IP_LIMIT_TIME
+	IP_LIMIT_VISIT_TIMES      = 100              // Maximum visits per IP within IP_LIMIT_TIME
 	IP_LIMIT_LOCKOUT_DURATION = time.Minute * 10 // IP lockout duration after IP_LIMIT_VISIT_TIMES
 )
 
