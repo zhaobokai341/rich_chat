@@ -14,6 +14,25 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
+// force to use https
+func force_https() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// force to use https if HTTPS_FORCE is true
+		if HTTPS_FORCE {
+			if c.Request.Header.Get("X-Forwarded-Proto") != "https" ||
+				c.Request.TLS == nil {
+				target := "https://" + c.Request.Host + c.Request.URL.Path
+				if len(c.Request.URL.RawQuery) > 0 {
+					target += "?" + c.Request.URL.RawQuery
+				}
+				c.Redirect(http.StatusPermanentRedirect, target)
+				c.Abort()
+				return
+			}
+		}
+	}
+}
+
 // check client if it is safe - Refactored to use services
 func safe_check() gin.HandlerFunc {
 	return func(c *gin.Context) {
@@ -42,12 +61,12 @@ func safe_check() gin.HandlerFunc {
 				reason := fmt.Sprintf("Exceeded rate limit: %d visits in %v (limit: %d)",
 					visitCount, IP_LIMIT_TIME, IP_LIMIT_VISIT_TIMES)
 				_ = rateLimitRepo.BlockIP(clientIP, reason, IP_LIMIT_LOCKOUT_DURATION)
-				
+
 				log.WithFields(log.Fields{
 					"ip":     clientIP,
 					"visits": visitCount,
 				}).Error("IP blocked due to rate limiting")
-				
+
 				c.AbortWithStatus(http.StatusTooManyRequests)
 				return
 			}
@@ -61,7 +80,7 @@ func safe_check() gin.HandlerFunc {
 			c.AbortWithStatus(http.StatusForbidden)
 			return
 		}
-		
+
 		client_version := c.GetHeader("User-Agent")[len(ALLOW_USER_AGENT)+1:]
 		if client_version != VERSION {
 			log.WithFields(log.Fields{
@@ -81,7 +100,7 @@ func safe_check() gin.HandlerFunc {
 				c.AbortWithStatus(http.StatusExpectationFailed)
 				return
 			}
-			
+
 			claims := &Claims{}
 			token, err := jwt.ParseWithClaims(usr_token, claims,
 				func(token *jwt.Token) (interface{}, error) {
@@ -91,7 +110,7 @@ func safe_check() gin.HandlerFunc {
 					}
 					return []byte(JWT_SECRET), nil
 				})
-			
+
 			if err != nil {
 				log.WithFields(log.Fields{
 					"error": err.Error(),
@@ -100,7 +119,7 @@ func safe_check() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			
+
 			user_id, err := strconv.Atoi(usr_id)
 			if err != nil {
 				log.WithFields(log.Fields{
@@ -110,14 +129,14 @@ func safe_check() gin.HandlerFunc {
 				c.Abort()
 				return
 			}
-			
+
 			if !token.Valid || claims.UserID != user_id {
 				log.Warning("Token is invalid or user_id mismatch")
 				c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
 				c.Abort()
 				return
 			}
-			
+
 			// Check if user exists using UserService
 			if services != nil {
 				exists, _ := services.UserService.CheckUserExists(user_id)
@@ -131,7 +150,7 @@ func safe_check() gin.HandlerFunc {
 				}
 			}
 		}
-		
+
 		c.Next()
 	}
 }

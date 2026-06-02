@@ -1,9 +1,11 @@
 package main
 
 import (
+	"net/http"
 	"rich_chat/lang_pack_load"
 	"rich_chat/server_api/database"
 	"rich_chat/server_api/service"
+	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -100,6 +102,26 @@ func initialize() {
 	}
 
 	// Middleware
+	web_server_engine.Use(
+		gin.CustomRecovery(
+			func(c *gin.Context, recovered interface{}) {
+				// Get request method and path
+				method := c.Request.Method
+				path := c.Request.URL.Path
+
+				// Output error message
+				log.Errorf("PANIC: %s %s - Error: %v\nStack:\n%s",
+					method, path, recovered, debug.Stack())
+
+				// Response with internal server error
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"code":    http.StatusInternalServerError,
+					"message": "Server internal error",
+				})
+			},
+		),
+	)
+	web_server_engine.Use(force_https())
 	web_server_engine.Use(safe_check())
 	web_server_engine.Use(gin.BasicAuth(gin.Accounts{
 		AUTH_USERNAME: AUTH_PASSWORD,
