@@ -98,7 +98,7 @@ func (h *UIHandler) handleAuthenticated() {
 	token, userID, err := h.authService.GetCredentials()
 	if err != nil {
 		h.printWarning("user_id_or_token_not_string")
-		h.authService.Logout()
+		_ = h.authService.Logout()
 		return
 	}
 
@@ -305,10 +305,6 @@ func (h *UIHandler) modifyUserInfo() {
 				return
 			}
 			newNickname = strings.TrimSpace(newNickname)
-			if newNickname == "" {
-				h.printError("nickname_cannot_be_empty")
-				continue
-			}
 			if err := h.userService.UpdateProfile("nickname", newNickname); err != nil {
 				h.printError(err)
 				return
@@ -322,10 +318,6 @@ func (h *UIHandler) modifyUserInfo() {
 				return
 			}
 			newBio = strings.TrimSpace(newBio)
-			if newBio == "" {
-				h.printError("bio_cannot_be_empty")
-				continue
-			}
 			if err := h.userService.UpdateProfile("bio", newBio); err != nil {
 				h.printError(err)
 				return
@@ -351,7 +343,7 @@ func (h *UIHandler) handleChangePassword() {
 	}
 	fmt.Println()
 	oldPassword := string(oldPasswordBytes)
-	
+
 	if oldPassword == "" {
 		h.printError("old_password_cannot_be_empty")
 		return

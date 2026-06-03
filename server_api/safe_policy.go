@@ -1,13 +1,10 @@
 package main
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
@@ -18,17 +15,18 @@ import (
 func force_https() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// force to use https if HTTPS_FORCE is true
-		if HTTPS_FORCE {
-			if c.Request.Header.Get("X-Forwarded-Proto") != "https" ||
-				c.Request.TLS == nil {
-				target := "https://" + c.Request.Host + c.Request.URL.Path
-				if len(c.Request.URL.RawQuery) > 0 {
-					target += "?" + c.Request.URL.RawQuery
-				}
-				c.Redirect(http.StatusPermanentRedirect, target)
-				c.Abort()
-				return
+		if !HTTPS_FORCE {
+			return
+		}
+		if c.Request.Header.Get("X-Forwarded-Proto") != "https" ||
+			c.Request.TLS == nil {
+			target := "https://" + c.Request.Host + c.Request.URL.Path
+			if len(c.Request.URL.RawQuery) > 0 {
+				target += "?" + c.Request.URL.RawQuery
 			}
+			c.Redirect(http.StatusPermanentRedirect, target)
+			c.Abort()
+			return
 		}
 	}
 }
@@ -93,61 +91,62 @@ func safe_check() gin.HandlerFunc {
 
 		// Check if user token is valid
 		usr_token := c.GetHeader("user_token")
-		if usr_token != "" {
-			usr_id := c.GetHeader("user_id")
-			if usr_id == "" {
-				log.Warning("user_id is empty")
-				c.AbortWithStatus(http.StatusExpectationFailed)
-				return
-			}
+		if usr_token == "" {
+			c.Next()
+		}
+		usr_id := c.GetHeader("user_id")
+		if usr_id == "" {
+			log.Warning("user_id is empty")
+			c.AbortWithStatus(http.StatusExpectationFailed)
+			return
+		}
 
-			claims := &Claims{}
-			token, err := jwt.ParseWithClaims(usr_token, claims,
-				func(token *jwt.Token) (interface{}, error) {
-					// Validate the signing method to prevent "alg: none" attack
-					if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-					}
-					return []byte(JWT_SECRET), nil
-				})
-
-			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err.Error(),
-				}).Warning("Token parse error")
-				c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
-				c.Abort()
-				return
-			}
-
-			user_id, err := strconv.Atoi(usr_id)
-			if err != nil {
-				log.WithFields(log.Fields{
-					"error": err.Error(),
-				}).Warning("Invalid user_id format")
-				c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
-				c.Abort()
-				return
-			}
-
-			if !token.Valid || claims.UserID != user_id {
-				log.Warning("Token is invalid or user_id mismatch")
-				c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
-				c.Abort()
-				return
-			}
-
-			// Check if user exists using UserService
-			if services != nil {
-				exists, _ := services.UserService.CheckUserExists(user_id)
-				if !exists {
-					log.WithFields(log.Fields{
-						"user_id": user_id,
-					}).Warning("User does not exist")
-					c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("user_not_exists")})
-					c.Abort()
-					return
+		claims := &Claims{}
+		token, err := jwt.ParseWithClaims(usr_token, claims,
+			func(token *jwt.Token) (interface{}, error) {
+				// Validate the signing method to prevent "alg: none" attack
+				if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 				}
+				return []byte(JWT_SECRET), nil
+			})
+
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err.Error(),
+			}).Warning("Token parse error")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
+			c.Abort()
+			return
+		}
+
+		user_id, err := strconv.Atoi(usr_id)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err.Error(),
+			}).Warning("Invalid user_id format")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
+			c.Abort()
+			return
+		}
+
+		if !token.Valid || claims.UserID != user_id {
+			log.Warning("Token is invalid or user_id mismatch")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
+			c.Abort()
+			return
+		}
+
+		// Check if user exists using UserService
+		if services != nil {
+			exists, _ := services.UserService.CheckUserExists(user_id)
+			if !exists {
+				log.WithFields(log.Fields{
+					"user_id": user_id,
+				}).Warning("User does not exist")
+				c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("authentication_failed")})
+				c.Abort()
+				return
 			}
 		}
 
@@ -156,32 +155,32 @@ func safe_check() gin.HandlerFunc {
 }
 
 // Generate a JWT token for a given user ID
-func generateToken(user_id int, valid_time time.Duration) (string, error) {
-	expirationTime := time.Now().Add(valid_time)
+// func generateToken(user_id int, valid_time time.Duration) (string, error) {
+// 	expirationTime := time.Now().Add(valid_time)
 
-	claims := &Claims{
-		UserID: user_id,
-		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(time.Now()),
-			Issuer:    "rich_chat",
-		},
-	}
+// 	claims := &Claims{
+// 		UserID: user_id,
+// 		RegisteredClaims: jwt.RegisteredClaims{
+// 			ExpiresAt: jwt.NewNumericDate(expirationTime),
+// 			IssuedAt:  jwt.NewNumericDate(time.Now()),
+// 			Issuer:    "rich_chat",
+// 		},
+// 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString([]byte(JWT_SECRET))
-	if err != nil {
-		return "", err
-	}
+// 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+// 	tokenString, err := token.SignedString([]byte(JWT_SECRET))
+// 	if err != nil {
+// 		return "", err
+// 	}
 
-	return tokenString, nil
-}
+// 	return tokenString, nil
+// }
 
 // Generate a random verification token
-func generateVerifyToken() (string, error) {
-	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(bytes), nil
-}
+// func generateVerifyToken() (string, error) {
+// 	bytes := make([]byte, 32)
+// 	if _, err := rand.Read(bytes); err != nil {
+// 		return "", err
+// 	}
+// 	return hex.EncodeToString(bytes), nil
+// }

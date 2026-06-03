@@ -203,8 +203,21 @@ func (r *RedisRateLimitRepository) CheckIPBlocked(ip string) (bool, error) {
 		return false, nil
 	}
 
+	// Check negative cache - IP was checked recently and found not to be blocked
+	negativeCacheKey := fmt.Sprintf("ip_not_blocked:%s", ip)
+	_, negativeFound := r.cache.Get(negativeCacheKey)
+	if negativeFound {
+		// Negative cache hit - IP is not blocked
+		log.WithFields(log.Fields{
+			"ip":     ip,
+			"source": "redis_negative_cache",
+		}).Debug("IP not blocked status retrieved from negative cache")
+		return false, nil
+	}
+
 	// Cache miss - would need to query database
-	// For now, return false (not blocked)
+	// For now, return false (not blocked) and set negative cache
+	r.cache.SetWithTTL(negativeCacheKey, "not_blocked", 60) // Cache negative result for 60 seconds
 	// In production, you'd implement DB query here
 	return false, nil
 }

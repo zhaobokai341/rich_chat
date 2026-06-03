@@ -167,3 +167,77 @@ func (m *MockCacheService) SetExpiration(key string, ttl time.Duration) {
 func (m *MockCacheService) SetNull(key string) {
 	m.Called(key)
 }
+
+// MockRedisManager is a mock implementation of RedisManager for testing
+type MockRedisManager struct {
+	mock.Mock
+}
+
+// NewMockRedisManager creates a new MockRedisManager with default implementations
+func NewMockRedisManager() *MockRedisManager {
+	return &MockRedisManager{}
+}
+
+// MockRedisManagerWithSetup creates a new MockRedisManager with custom implementations
+func MockRedisManagerWithSetup(setup func(*MockRedisManager)) *MockRedisManager {
+	mock := NewMockRedisManager()
+	if setup != nil {
+		setup(mock)
+	}
+	return mock
+}
+
+// Implement RedisManager interface methods
+func (m *MockRedisManager) GetCache(key string) (string, bool) {
+	args := m.Called(key)
+	return args.String(0), args.Bool(1)
+}
+
+func (m *MockRedisManager) GetIntValue(key string) (int64, bool) {
+	args := m.Called(key)
+	return args.Get(0).(int64), args.Bool(1)
+}
+
+func (m *MockRedisManager) SetCache(key string, value string) {
+	m.Called(key, value)
+}
+
+func (m *MockRedisManager) SetNullCache(key string) {
+	m.Called(key)
+}
+
+func (m *MockRedisManager) SetCacheWithTTL(key string, value string, ttl int) {
+	m.Called(key, value, ttl)
+}
+
+func (m *MockRedisManager) SetLockoutCache(key string) {
+	m.Called(key)
+}
+
+func (m *MockRedisManager) IncrementCounter(key string) int64 {
+	args := m.Called(key)
+	return args.Get(0).(int64)
+}
+
+func (m *MockRedisManager) SetKeyExpiration(key string, ttl time.Duration) {
+	m.Called(key, ttl)
+}
+
+func (m *MockRedisManager) DeleteCache(key string) {
+	m.Called(key)
+}
+
+// ToRedisManager converts MockRedisManager to RedisManager struct for compatibility
+func (m *MockRedisManager) ToRedisManager() RedisManager {
+	return RedisManager{
+		GetCache:         m.GetCache,
+		GetIntValue:      m.GetIntValue,
+		SetCache:         m.SetCache,
+		SetNullCache:     m.SetNullCache,
+		SetCacheWithTTL:  m.SetCacheWithTTL,
+		SetLockoutCache:  m.SetLockoutCache,
+		IncrementCounter: m.IncrementCounter,
+		SetKeyExpiration: m.SetKeyExpiration,
+		DeleteCache:      m.DeleteCache,
+	}
+}

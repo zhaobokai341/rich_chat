@@ -39,7 +39,8 @@ func (s *UserServiceImpl) GetUserProfile(ctx context.Context, userID int) (*data
 		return nil, fmt.Errorf("failed to check user existence: %w", err)
 	}
 	if !exists {
-		return nil, ErrUserNotFound
+		// To prevent user enumeration, we return the same error type as for auth failures
+		return nil, ErrInvalidPassword
 	}
 
 	// Get user profile
@@ -58,21 +59,26 @@ func (s *UserServiceImpl) GetUserProfile(ctx context.Context, userID int) (*data
 // UpdateUserProfile updates user profile information
 func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, req *UserProfileUpdateRequest) error {
 	// Validate input
-	if req.Key == "" || req.Value == "" {
+	if req.Key == "" {
 		return ErrInvalidInput
 	}
 
 	// Check if user exists
-	exists, err := s.userRepo.ExistsByID(req.UserID)
+	_, err := s.userRepo.FindByID(req.UserID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id": req.UserID,
 			"error":   err.Error(),
-		}).Error("Failed to check user existence")
-		return fmt.Errorf("failed to check user existence: %w", err)
-	}
-	if !exists {
-		return ErrUserNotFound
+		}).Warning("User not found during profile update attempt")
+
+		identifier := fmt.Sprintf("%d", req.UserID)
+		// Track failed attempt - treat non-existent user as invalid attempt
+		if s.rateLimitRepo != nil {
+			_ = s.rateLimitRepo.TrackLoginAttempt(identifier, false)
+		}
+
+		// Return ErrInvalidPassword to prevent user enumeration
+		return ErrInvalidPassword
 	}
 
 	// Update profile
@@ -101,17 +107,21 @@ func (s *UserServiceImpl) ChangeUserPassword(ctx context.Context, req *ChangePas
 		return ErrInvalidInput
 	}
 
-	// Check if user exists
-	exists, err := s.userRepo.ExistsByID(req.UserID)
+	// Check if user exists by retrieving user data
+	user, err := s.userRepo.FindByID(req.UserID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id": req.UserID,
 			"error":   err.Error(),
-		}).Error("Failed to check user existence")
-		return fmt.Errorf("failed to check user existence: %w", err)
-	}
-	if !exists {
-		return ErrUserNotFound
+		}).Warning("User not found during password change attempt")
+
+		// To prevent user enumeration, we return the same error type as for auth failures
+		// Also track the attempt to maintain consistent behavior
+		identifier := fmt.Sprintf("%d", req.UserID)
+		if s.rateLimitRepo != nil {
+			_ = s.rateLimitRepo.TrackLoginAttempt(identifier, false)
+		}
+		return ErrInvalidPassword
 	}
 
 	// Check if account is locked
@@ -124,16 +134,6 @@ func (s *UserServiceImpl) ChangeUserPassword(ctx context.Context, req *ChangePas
 			}).Warning("Change password attempt on locked account")
 			return ErrAccountLocked
 		}
-	}
-
-	// Find user
-	user, err := s.userRepo.FindByID(req.UserID)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"user_id": req.UserID,
-			"error":   err.Error(),
-		}).Error("Failed to find user")
-		return fmt.Errorf("failed to find user: %w", err)
 	}
 
 	// Verify old password
@@ -211,12 +211,13 @@ func (s *UserServiceImpl) DeleteUser(ctx context.Context, req *DeleteUserRequest
 			"error":   err.Error(),
 		}).Warning("User not found during delete attempt")
 
-		// Track failed attempt
+		// Track failed attempt - treat non-existent user as invalid password attempt
 		if s.rateLimitRepo != nil {
 			_ = s.rateLimitRepo.TrackLoginAttempt(identifier, false)
 		}
 
-		return ErrUserNotFound
+		// Return ErrInvalidPassword to prevent user enumeration
+		return ErrInvalidPassword
 	}
 
 	// Verify password

@@ -23,12 +23,30 @@ func NewLanguagePack(file string, language string) *LanguagePack {
 }
 
 func (lp *LanguagePack) Load() {
-	content, _ := os.ReadFile(lp.file)
-	json.Unmarshal(content, &lp.data)
+	content, err := os.ReadFile(lp.file)
+	if err != nil {
+		// Handle error appropriately, maybe log it
+		return
+	}
+	err = json.Unmarshal(content, &lp.data)
+	if err != nil {
+		// Handle error appropriately, maybe log it
+		return
+	}
 }
 
 func (lp *LanguagePack) G(key string) string {
-	translations, _ := lp.data[key]
-	text, _ := translations[lp.language]
+	translations, ok := lp.data[key]
+	if !ok {
+		return key // Return the key itself if translation not found
+	}
+	text, ok := translations[lp.language]
+	if !ok {
+		// Try fallback to English if language not found
+		text, ok = translations["en"]
+		if !ok {
+			return key // Return the key itself if translation not found
+		}
+	}
 	return text
 }

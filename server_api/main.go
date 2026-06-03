@@ -33,13 +33,6 @@ var dbService *database.DatabaseService
 var services *service.Services
 var lp *lang_pack_load.LanguagePack
 
-var log_func = map[string]func(v ...interface{}){
-	"info":  log.Info,
-	"debug": log.Debug,
-	"warn":  log.Warning,
-	"error": log.Error,
-}
-
 // Initialize all components with dependency injection
 func initialize() {
 	// Load language pack
@@ -161,5 +154,7 @@ func main() {
 	defer dbService.GetDB().Close()
 
 	log.Info("Starting server...")
-	web_server_engine.Run(WEB_PORT)
+	if err := web_server_engine.Run(WEB_PORT); err != nil {
+		log.Fatal("Server failed to start: ", err)
+	}
 }

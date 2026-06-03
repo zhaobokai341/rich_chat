@@ -111,6 +111,7 @@ func (r *PostgresUserRepository) UpdateProfile(userID int, key, value string) er
 	allowedColumns := map[string]bool{
 		"nickname": true,
 		"bio":      true,
+		"email":    true,
 	}
 	if !allowedColumns[key] {
 		return fmt.Errorf("invalid column name: %s", key)

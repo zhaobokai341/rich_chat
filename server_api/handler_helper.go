@@ -25,12 +25,10 @@ func handleServiceError(c *gin.Context, err error) {
 			"message": lp.G("account_locked_try_later"),
 		})
 	case service.ErrInvalidPassword:
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"message": lp.G("username_or_password_is_invalid"),
-		})
+		fallthrough
 	case service.ErrUserNotFound:
-		c.JSON(http.StatusNotFound, gin.H{
-			"message": lp.G("user_not_found"),
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"message": lp.G("authentication_failed"),
 		})
 	case service.ErrUsernameAlreadyExists:
 		c.JSON(http.StatusConflict, gin.H{

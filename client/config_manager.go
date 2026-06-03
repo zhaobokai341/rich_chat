@@ -112,7 +112,7 @@ func (m *FileConfigManager) SetUserID(userID string) {
 func (m *FileConfigManager) ClearCredentials() {
 	delete(m.userData, "token")
 	delete(m.userData, "user_id")
-	m.SaveConfig(m.userData)
+	_ = m.SaveConfig(m.userData)
 }
 
 // ensureConfigDir creates the config directory if it doesn't exist

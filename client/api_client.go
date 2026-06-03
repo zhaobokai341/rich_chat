@@ -115,6 +115,11 @@ func (c *RestAPIClient) Login(username, password, verifyToken string) (*AuthResp
 				msg = errorResp.Error
 			}
 			if msg != "" {
+				// Check if the message is the new generic authentication failure message
+				if msg == "Authentication failed, please check your credentials" ||
+					msg == "认证失败，请检查您的凭据" {
+					return nil, errors.New(c.languagePack.Get("authentication_failed"))
+				}
 				return nil, fmt.Errorf(c.languagePack.Get("login_failed"), msg)
 			}
 		}
@@ -159,6 +164,11 @@ func (c *RestAPIClient) Register(username, password, verifyToken string) (*AuthR
 				msg = errorResp.Error
 			}
 			if msg != "" {
+				// Check if the message is the new generic authentication failure message
+				if msg == "Authentication failed, please check your credentials" ||
+					msg == "认证失败，请检查您的凭据" {
+					return nil, errors.New(c.languagePack.Get("authentication_failed"))
+				}
 				return nil, fmt.Errorf(c.languagePack.Get("register_failed"), msg)
 			}
 		}
@@ -198,6 +208,11 @@ func (c *RestAPIClient) DeleteUser(userID, password, verifyToken string) error {
 				msg = errorResp.Error
 			}
 			if msg != "" {
+				// Check if the message is the new generic authentication failure message
+				if msg == "Authentication failed, please check your credentials" ||
+					msg == "认证失败，请检查您的凭据" {
+					return errors.New(c.languagePack.Get("authentication_failed"))
+				}
 				return fmt.Errorf(c.languagePack.Get("delete_account_failed"), msg)
 			}
 		}
@@ -231,6 +246,11 @@ func (c *RestAPIClient) GetUserProfile(userID, verifyToken string) (*UserInfoRes
 				msg = errorResp.Error
 			}
 			if msg != "" {
+				// Check if the message is the new generic authentication failure message
+				if msg == "Authentication failed, please check your credentials" ||
+					msg == "认证失败，请检查您的凭据" {
+					return nil, errors.New(c.languagePack.Get("authentication_failed"))
+				}
 				return nil, fmt.Errorf(c.languagePack.Get("user_info_failed"), msg)
 			}
 		}
@@ -271,6 +291,11 @@ func (c *RestAPIClient) UpdateUserProfile(userID, key, value, verifyToken string
 				msg = errorResp.Error
 			}
 			if msg != "" {
+				// Check if the message is the new generic authentication failure message
+				if msg == "Authentication failed, please check your credentials" ||
+					msg == "认证失败，请检查您的凭据" {
+					return errors.New(c.languagePack.Get("authentication_failed"))
+				}
 				return fmt.Errorf(c.languagePack.Get("user_info_change_failed"), msg)
 			}
 		}
@@ -306,6 +331,11 @@ func (c *RestAPIClient) ChangePassword(userID, oldPassword, newPassword, verifyT
 				msg = errorResp.Error
 			}
 			if msg != "" {
+				// Check if the message is the new generic authentication failure message
+				if msg == "Authentication failed, please check your credentials" ||
+					msg == "认证失败，请检查您的凭据" {
+					return errors.New(c.languagePack.Get("authentication_failed"))
+				}
 				return fmt.Errorf(c.languagePack.Get("password_change_failed"), msg)
 			}
 		}

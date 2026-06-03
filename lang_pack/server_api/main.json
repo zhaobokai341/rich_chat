@@ -47,6 +47,10 @@
         "zh": "用户信息",
         "en": "User info"
     },
+    "authentication_failed": {
+        "zh": "认证失败，请检查您的凭据",
+        "en": "Authentication failed, please check your credentials"
+    },
     "user_not_exists": {
         "zh": "用户不存在",
         "en": "User not exists"

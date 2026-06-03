@@ -74,7 +74,7 @@ const (
 func LoadConfig() {
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatal("Error loading .env file")
+		log.Printf("Error loading .env file: %v", err)
 	}
 	// Load JWT and Auth config
 	JWT_SECRET = getEnv("JWT_SECRET", "your-secret-key-change-in-production")

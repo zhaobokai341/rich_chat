@@ -83,6 +83,10 @@
         "zh": "不是rich_chat服务器",
         "en": "Is not rich_chat server"
     },
+    "authentication_failed": {
+        "zh": "认证失败，请检查您的凭据",
+        "en": "Authentication failed, please check your credentials"
+    },
     "login_failed": {
         "zh": "登录失败: %s",
         "en": "Login failed: %s"
@@ -286,14 +290,6 @@
     "enter_new_bio": {
         "zh": "请输入新的个人简介：",
         "en": "Please enter new bio: "
-    },
-    "nickname_cannot_be_empty": {
-        "zh": "昵称不能为空",
-        "en": "Nickname cannot be empty"
-    },
-    "bio_cannot_be_empty": {
-        "zh": "个人简介不能为空",
-        "en": "Bio cannot be empty"
     },
     "modifying_user_info": {
         "zh": "正在修改用户信息...",

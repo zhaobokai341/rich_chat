@@ -410,6 +410,342 @@ func TestCachedUserRepository_GetUserProfile(t *testing.T) {
 	}
 }
 
+// TestCachedUserRepository_UpdateProfile tests the UpdateProfile method
+func TestCachedUserRepository_UpdateProfile(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+
+	tests := []struct {
+		name          string
+		userID        int
+		key           string
+		value         string
+		expectedError error
+		setupMocks    func()
+	}{
+		{
+			name:          "successful profile update",
+			userID:        1,
+			key:           "nickname",
+			value:         "New Nickname",
+			expectedError: nil,
+			setupMocks: func() {
+				mockRepo.On("UpdateProfile", 1, "nickname", "New Nickname").Return(nil)
+				mockCache.On("Delete", "user:info:1").Once()
+			},
+		},
+		{
+			name:          "update failure",
+			userID:        2,
+			key:           "bio",
+			value:         "New bio",
+			expectedError: errors.New("database error"),
+			setupMocks: func() {
+				mockRepo.On("UpdateProfile", 2, "bio", "New bio").Return(errors.New("database error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			err := cachedRepo.UpdateProfile(tt.userID, tt.key, tt.value)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedError.Error())
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+			mockCache.AssertExpectations(t)
+		})
+	}
+}
+
+// TestCachedUserRepository_UpdatePassword tests the UpdatePassword method
+func TestCachedUserRepository_UpdatePassword(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+
+	tests := []struct {
+		name            string
+		userID          int
+		newPasswordHash string
+		expectedError   error
+		setupMocks      func()
+	}{
+		{
+			name:            "successful password update",
+			userID:          1,
+			newPasswordHash: "$2a$10$newhash",
+			expectedError:   nil,
+			setupMocks: func() {
+				mockRepo.On("UpdatePassword", 1, "$2a$10$newhash").Return(nil)
+				mockCache.On("Delete", "user:hash:1").Once()
+			},
+		},
+		{
+			name:            "update failure",
+			userID:          2,
+			newPasswordHash: "$2a$10$anotherhash",
+			expectedError:   errors.New("database error"),
+			setupMocks: func() {
+				mockRepo.On("UpdatePassword", 2, "$2a$10$anotherhash").Return(errors.New("database error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			err := cachedRepo.UpdatePassword(tt.userID, tt.newPasswordHash)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+			mockCache.AssertExpectations(t)
+		})
+	}
+}
+
+// TestCachedUserRepository_UpdateLastLogin tests the UpdateLastLogin method
+func TestCachedUserRepository_UpdateLastLogin(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+
+	tests := []struct {
+		name          string
+		userID        int
+		expectedError error
+		setupMocks    func()
+	}{
+		{
+			name:          "successful update",
+			userID:        1,
+			expectedError: nil,
+			setupMocks: func() {
+				mockRepo.On("UpdateLastLogin", 1).Return(nil)
+			},
+		},
+		{
+			name:          "update failure",
+			userID:        2,
+			expectedError: errors.New("database error"),
+			setupMocks: func() {
+				mockRepo.On("UpdateLastLogin", 2).Return(errors.New("database error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			err := cachedRepo.UpdateLastLogin(tt.userID)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestCachedUserRepository_UpdateLockStatus tests the UpdateLockStatus method
+func TestCachedUserRepository_UpdateLockStatus(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+
+	tests := []struct {
+		name          string
+		identifier    string
+		lockUntil     *time.Time
+		expectedError error
+		setupMocks    func()
+	}{
+		{
+			name:          "successful lock status update",
+			identifier:    "testuser",
+			lockUntil:     nil,
+			expectedError: nil,
+			setupMocks: func() {
+				mockRepo.On("UpdateLockStatus", "testuser", (*time.Time)(nil)).Return(nil)
+			},
+		},
+		{
+			name:       "lock user until future time",
+			identifier: "lockeduser",
+			lockUntil: func() *time.Time {
+				t := time.Now().Add(time.Minute * 15)
+				return &t
+			}(),
+			expectedError: nil,
+			setupMocks: func() {
+				mockRepo.On("UpdateLockStatus", "lockeduser", mock.MatchedBy(func(t *time.Time) bool {
+					return t != nil && t.After(time.Now())
+				})).Return(nil)
+			},
+		},
+		{
+			name:          "update failure",
+			identifier:    "erroruser",
+			lockUntil:     nil,
+			expectedError: errors.New("database error"),
+			setupMocks: func() {
+				mockRepo.On("UpdateLockStatus", "erroruser", (*time.Time)(nil)).Return(errors.New("database error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			err := cachedRepo.UpdateLockStatus(tt.identifier, tt.lockUntil)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestCachedUserRepository_GetLockStatus tests the GetLockStatus method
+func TestCachedUserRepository_GetLockStatus(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+
+	tests := []struct {
+		name          string
+		identifier    string
+		expectedTime  *time.Time
+		expectedError error
+		setupMocks    func()
+	}{
+		{
+			name:          "user not locked",
+			identifier:    "normaluser",
+			expectedTime:  nil,
+			expectedError: nil,
+			setupMocks: func() {
+				mockRepo.On("GetLockStatus", "normaluser").Return((*time.Time)(nil), nil)
+			},
+		},
+		{
+			name:       "user locked",
+			identifier: "lockeduser",
+			expectedTime: func() *time.Time {
+				t := time.Now().Add(time.Hour)
+				return &t
+			}(),
+			expectedError: nil,
+			setupMocks: func() {
+				futureTime := time.Now().Add(time.Hour)
+				mockRepo.On("GetLockStatus", "lockeduser").Return(&futureTime, nil)
+			},
+		},
+		{
+			name:          "database error",
+			identifier:    "erroruser",
+			expectedTime:  nil,
+			expectedError: errors.New("database error"),
+			setupMocks: func() {
+				mockRepo.On("GetLockStatus", "erroruser").Return((*time.Time)(nil), errors.New("database error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			lockTime, err := cachedRepo.GetLockStatus(tt.identifier)
+
+			if tt.expectedTime != nil {
+				assert.NotNil(t, lockTime)
+				assert.WithinDuration(t, *tt.expectedTime, *lockTime, time.Second)
+			} else {
+				assert.Nil(t, lockTime)
+			}
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+// TestCachedUserRepository_ClearExpiredLock tests the ClearExpiredLock method
+func TestCachedUserRepository_ClearExpiredLock(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+
+	tests := []struct {
+		name          string
+		identifier    string
+		expectedError error
+		setupMocks    func()
+	}{
+		{
+			name:          "successful lock clear",
+			identifier:    "expireduser",
+			expectedError: nil,
+			setupMocks: func() {
+				mockRepo.On("ClearExpiredLock", "expireduser").Return(nil)
+			},
+		},
+		{
+			name:          "clear failure",
+			identifier:    "erroruser",
+			expectedError: errors.New("database error"),
+			setupMocks: func() {
+				mockRepo.On("ClearExpiredLock", "erroruser").Return(errors.New("database error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			err := cachedRepo.ClearExpiredLock(tt.identifier)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
 // TestCachedUserRepository_DeleteUser tests the DeleteUser method
 func TestCachedUserRepository_DeleteUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
@@ -776,4 +1112,203 @@ func TestRedisRateLimitRepository_BlockIP(t *testing.T) {
 
 	assert.NoError(t, err)
 	mockCache.AssertExpectations(t)
+}
+
+// TestRedisCacheAdapter_Get tests the Get method
+func TestRedisCacheAdapter_Get(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	tests := []struct {
+		name          string
+		key           string
+		expectedValue string
+		expectedFound bool
+		setupMocks    func()
+	}{
+		{
+			name:          "key exists",
+			key:           "test:key",
+			expectedValue: "test-value",
+			expectedFound: true,
+			setupMocks: func() {
+				mockManager.On("GetCache", "test:key").Return("test-value", true)
+			},
+		},
+		{
+			name:          "key does not exist",
+			key:           "nonexistent:key",
+			expectedValue: "",
+			expectedFound: false,
+			setupMocks: func() {
+				mockManager.On("GetCache", "nonexistent:key").Return("", false)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			value, found := adapter.Get(tt.key)
+
+			assert.Equal(t, tt.expectedValue, value)
+			assert.Equal(t, tt.expectedFound, found)
+
+			mockManager.AssertExpectations(t)
+		})
+	}
+}
+
+// TestRedisCacheAdapter_Set tests the Set method
+func TestRedisCacheAdapter_Set(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	key := "test:key"
+	value := "test-value"
+
+	mockManager.On("SetCache", key, value).Once()
+
+	adapter.Set(key, value)
+
+	mockManager.AssertExpectations(t)
+}
+
+// TestRedisCacheAdapter_SetWithTTL tests the SetWithTTL method
+func TestRedisCacheAdapter_SetWithTTL(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	key := "test:key"
+	value := "test-value"
+	ttlSeconds := 300
+
+	mockManager.On("SetCacheWithTTL", key, value, ttlSeconds).Once()
+
+	adapter.SetWithTTL(key, value, ttlSeconds)
+
+	mockManager.AssertExpectations(t)
+}
+
+// TestRedisCacheAdapter_Delete tests the Delete method
+func TestRedisCacheAdapter_Delete(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	key := "test:key"
+
+	mockManager.On("DeleteCache", key).Once()
+
+	adapter.Delete(key)
+
+	mockManager.AssertExpectations(t)
+}
+
+// TestRedisCacheAdapter_Increment tests the Increment method
+func TestRedisCacheAdapter_Increment(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	key := "counter:test"
+
+	mockManager.On("IncrementCounter", key).Return(int64(5))
+
+	result := adapter.Increment(key)
+
+	assert.Equal(t, int64(5), result)
+	mockManager.AssertExpectations(t)
+}
+
+// TestRedisCacheAdapter_SetExpiration tests the SetExpiration method
+func TestRedisCacheAdapter_SetExpiration(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	key := "test:key"
+	ttl := time.Minute * 5
+
+	mockManager.On("SetKeyExpiration", key, ttl).Once()
+
+	adapter.SetExpiration(key, ttl)
+
+	mockManager.AssertExpectations(t)
+}
+
+// TestRedisCacheAdapter_SetNull tests the SetNull method
+func TestRedisCacheAdapter_SetNull(t *testing.T) {
+	mockManager := NewMockRedisManager()
+	adapter := NewRedisCacheAdapter(mockManager.ToRedisManager())
+
+	key := "test:key"
+
+	mockManager.On("SetNullCache", key).Once()
+
+	adapter.SetNull(key)
+
+	mockManager.AssertExpectations(t)
+}
+
+// TestRedisRateLimitRepository_CheckIPBlocked tests the CheckIPBlocked method
+func TestRedisRateLimitRepository_CheckIPBlocked(t *testing.T) {
+	mockCache := new(MockCacheService)
+	mockUserRepo := new(MockUserRepository)
+	config := Config{}
+	repo := NewRedisRateLimitRepository(mockCache, mockUserRepo, config)
+
+	tests := []struct {
+		name          string
+		ip            string
+		expectedBlock bool
+		expectedError error
+		setupMocks    func()
+	}{
+		{
+			name:          "IP is blocked in cache",
+			ip:            "192.168.1.100",
+			expectedBlock: true,
+			expectedError: nil,
+			setupMocks: func() {
+				mockCache.On("Get", "ip_blocked:192.168.1.100").Return("blocked", true)
+			},
+		},
+		{
+			name:          "IP is not blocked - cached negative",
+			ip:            "192.168.1.101",
+			expectedBlock: false,
+			expectedError: nil,
+			setupMocks: func() {
+				mockCache.On("Get", "ip_blocked:192.168.1.101").Return("", false)
+				mockCache.On("Get", "ip_not_blocked:192.168.1.101").Return("", true)
+			},
+		},
+		{
+			name:          "IP is not blocked - cache miss",
+			ip:            "192.168.1.102",
+			expectedBlock: false,
+			expectedError: nil,
+			setupMocks: func() {
+				mockCache.On("Get", "ip_blocked:192.168.1.102").Return("", false)
+				mockCache.On("Get", "ip_not_blocked:192.168.1.102").Return("", false)
+				mockCache.On("SetWithTTL", "ip_not_blocked:192.168.1.102", "not_blocked", 60).Once()
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.setupMocks()
+
+			blocked, err := repo.CheckIPBlocked(tt.ip)
+
+			assert.Equal(t, tt.expectedBlock, blocked)
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			mockCache.AssertExpectations(t)
+		})
+	}
 }
