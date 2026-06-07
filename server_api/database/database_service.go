@@ -10,6 +10,7 @@ import (
 // DatabaseService is the new refactored service that uses repositories
 type DatabaseService struct {
 	userRepo      UserRepository
+	chatRepo      ChatRepository
 	rateLimitRepo RateLimitRepository
 	tokenRepo     TokenRepository
 	cache         CacheService
@@ -26,6 +27,9 @@ func NewDatabaseService(
 	// Create PostgreSQL user repository
 	pgUserRepo := NewPostgresUserRepository(db)
 
+	// Create PostgreSQL chat repository
+	pgChatRepo := NewPostgresChatRepository(db)
+
 	// Wrap with caching decorator
 	cachedUserRepo := NewCachedUserRepository(pgUserRepo, cache)
 
@@ -37,6 +41,7 @@ func NewDatabaseService(
 
 	return &DatabaseService{
 		userRepo:      cachedUserRepo,
+		chatRepo:      pgChatRepo,
 		rateLimitRepo: rateLimitRepo,
 		tokenRepo:     tokenRepo,
 		cache:         cache,
@@ -58,6 +63,11 @@ func (ds *DatabaseService) GetRateLimitRepository() RateLimitRepository {
 // GetTokenRepository returns the token repository
 func (ds *DatabaseService) GetTokenRepository() TokenRepository {
 	return ds.tokenRepo
+}
+
+// GetChatRepository returns the chat repository
+func (ds *DatabaseService) GetChatRepository() ChatRepository {
+	return ds.chatRepo
 }
 
 // GetDB returns the underlying database connection

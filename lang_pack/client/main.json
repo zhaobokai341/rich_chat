@@ -271,6 +271,10 @@
         "zh": "用户名: %s",
         "en": "Username: %s"
     },
+    "user_info_email": {
+        "zh": "邮箱: %s",
+        "en": "Email: %s"
+    },
     "user_info_nickname": {
         "zh": "昵称: %s",
         "en": "Nickname: %s"
@@ -280,12 +284,16 @@
         "en": "Bio: %s"
     },
     "choose_info_to_modify": {
-        "zh": "\n请选择要修改的信息:\n        1. 昵称\n        2. 个人简介\n        3. 返回：",
-        "en": "\nPlease choose info to modify:\n        1. Nickname\n        2. Bio\n        3. Back:"
+        "zh": "\n请选择要修改的信息:\n        1. 昵称\n        2. 邮箱\n        3. 个人简介\n        4. 返回：",
+        "en": "\nPlease choose info to modify:\n        1. Nickname\n        2. Email\n        3. Bio\n        4. Back:"
     },
     "enter_new_nickname": {
         "zh": "请输入新的昵称：",
         "en": "Please enter new nickname: "
+    },
+    "enter_new_email": {
+        "zh": "请输入新的邮箱：",
+        "en": "Please enter new email: "
     },
     "enter_new_bio": {
         "zh": "请输入新的个人简介：",
@@ -350,5 +358,49 @@
     "new_passwords_do_not_match": {
         "zh": "两次输入的新密码不一致",
         "en": "New passwords do not match"
+    },
+    "reading_config_failed": {
+        "zh": "读取配置失败",
+        "en": "Failed to read configuration"
+    },
+    "server_health_check_failed": {
+        "zh": "服务器健康检查失败",
+        "en": "Server health check failed"
+    },
+    "failed_to_read_input": {
+        "zh": "读取输入失败",
+        "en": "Failed to read input"
+    },
+    "language_changed_successfully": {
+        "zh": "语言切换成功",
+        "en": "Language changed successfully"
+    },
+    "failed_to_read_choice": {
+        "zh": "读取选择失败",
+        "en": "Failed to read choice"
+    },
+    "getting_verify_token_failed": {
+        "zh": "获取验证令牌失败",
+        "en": "Failed to get verify token"
+    },
+    "clear_credentials_failed": {
+        "zh": "清除凭证失败",
+        "en": "Failed to clear credentials"
+    },
+    "stat_config_dir_error": {
+        "zh": "检查配置目录状态错误",
+        "en": "Stat config directory error"
+    },
+    "failed_to_decode_token_payload": {
+        "zh": "解码令牌载荷失败",
+        "en": "Failed to decode token payload"
+    },
+    "failed_to_parse_token_claims": {
+        "zh": "解析令牌声明失败",
+        "en": "Failed to parse token claims"
+    },
+    "user_id_not_found_in_token": {
+        "zh": "在令牌中未找到用户ID",
+        "en": "User ID not found in token"
     }
 }

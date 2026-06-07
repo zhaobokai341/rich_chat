@@ -26,11 +26,9 @@ func (r *PostgresUserRepository) CreateUser(username, passwordHash string) (int,
 	err := r.db.QueryRow(
 		`INSERT INTO users (
 			username,
-			nickname,
 			password_hash,
-			bio,
 			last_login
-		) VALUES ($1, $1, $2, '', NOW()) 
+		) VALUES ($1, $2, NOW()) 
 		RETURNING id`,
 		username, passwordHash,
 	).Scan(&userID)
@@ -95,8 +93,8 @@ func (r *PostgresUserRepository) ExistsByUsername(username string) (bool, error)
 func (r *PostgresUserRepository) GetUserProfile(userID int) (*UserInfo, error) {
 	var userInfo UserInfo
 	err := r.db.QueryRow(
-		"SELECT username, nickname, bio FROM users WHERE id = $1", userID,
-	).Scan(&userInfo.Username, &userInfo.Nickname, &userInfo.Bio)
+		"SELECT username, email, nickname, bio FROM users WHERE id = $1", userID,
+	).Scan(&userInfo.Username, &userInfo.Email, &userInfo.Nickname, &userInfo.Bio)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user profile for ID %d: %w", userID, err)

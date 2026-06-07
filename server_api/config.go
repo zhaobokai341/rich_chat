@@ -11,10 +11,10 @@ import (
 
 // Configuration variables
 const (
-	WEB_PORT    = ":2316" // http port
-	LANGUAGE    = "zh"    // language (zh/en)
-	HTTPS_FORCE = false   // force https (RECOMMENDED SET TO TRUE ON PRODUCTION)
-	VERSION     = "1.0.0" // product version, DO NOT CHANGE
+	WEB_PORT         = ":2316" // http port
+	DEFAULT_LANGUAGE = "zh"    // default language (zh/en)
+	HTTPS_FORCE      = false   // force https (RECOMMENDED SET TO TRUE ON PRODUCTION)
+	VERSION          = "1.0.0" // product version, DO NOT CHANGE
 )
 
 var (
@@ -55,7 +55,7 @@ const (
 
 // Rate limiting configuration variables
 const (
-	IP_LIMIT_TIME             = time.Minute * 10 // Time window for IP rate limiting (1 minute)
+	IP_LIMIT_TIME             = time.Minute * 10 // Time window for IP rate linking (1 minute)
 	IP_LIMIT_VISIT_TIMES      = 1000             // Maximum visits per IP within IP_LIMIT_TIME
 	IP_LIMIT_LOCKOUT_DURATION = time.Minute * 10 // IP lockout duration after IP_LIMIT_VISIT_TIMES
 )
@@ -65,9 +65,20 @@ const (
 	ALLOW_USER_AGENT             = "rich_chat"         // allow user agent visit api
 	JWT_EXPIRE_TIME              = time.Hour * 24 * 30 // 30 days, about 1 month
 	ALLOW_MAX_LENGTH_OF_USERNAME = 50                  // max length of username
+	ALLOW_MAX_LENGTH_OF_PASSWORD = 100                 // max length of password
+	ALLOW_MAX_LENGTH_OF_BIO      = 500                 // max length of bio
+	ALLOW_MAX_LENGTH_OF_EMAIL    = 100                 // max length of email
 	VERIFY_TOKEN_EXPIRE_TIME     = time.Minute * 5     // Verification token expire time (5 minutes)
 	MAX_LOGIN_ATTEMPTS           = 5                   // Maximum login attempts before lockout
 	LOCKOUT_DURATION             = time.Minute * 15    // Account lockout duration after max attempts
+)
+
+// WebSocket configuration constants
+const (
+	WEBSOCKET_WRITE_WAIT       = 10 * time.Second // Time allowed to write a message to the peer
+	WEBSOCKET_PONG_WAIT        = 60 * time.Second // Time allowed to read the next pong message from the peer
+	WEBSOCKET_PING_PERIOD      = 54 * time.Second // Send pings to peer with this period (should be less than pong wait: (60 * 9) / 10 = 54)
+	WEBSOCKET_MAX_MESSAGE_SIZE = 5120             // Maximum message size allowed from peer (5KB)
 )
 
 // LoadConfig loads configuration from environment variables

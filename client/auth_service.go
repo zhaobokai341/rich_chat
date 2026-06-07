@@ -6,17 +6,19 @@ import (
 
 // AuthService handles authentication business logic
 type AuthService struct {
-	apiClient    APIClient
-	configMgr    ConfigManager
+	apiClient      APIClient
+	configMgr      ConfigManager
 	tokenExtractor TokenExtractor
+	languagePack   *LanguagePackWrapper
 }
 
 // NewAuthService creates a new authentication service
-func NewAuthService(apiClient APIClient, configMgr ConfigManager, tokenExtractor TokenExtractor) *AuthService {
+func NewAuthService(apiClient APIClient, configMgr ConfigManager, tokenExtractor TokenExtractor, languagePack *LanguagePackWrapper) *AuthService {
 	return &AuthService{
 		apiClient:      apiClient,
 		configMgr:      configMgr,
 		tokenExtractor: tokenExtractor,
+		languagePack:   languagePack,
 	}
 }
 
@@ -25,7 +27,8 @@ func (s *AuthService) Login(username, password string) error {
 	// Get verification token
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
-		return fmt.Errorf("getting_verify_token_failed: %w", err)
+		msg := s.languagePack.Get("getting_verify_token_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	// Perform login
@@ -40,7 +43,8 @@ func (s *AuthService) Login(username, password string) error {
 	s.configMgr.SetUserID(userIDStr)
 
 	if err := s.configMgr.SaveConfig(s.getUserData()); err != nil {
-		return fmt.Errorf("save_credentials_failed: %w", err)
+		msg := s.languagePack.Get("save_credentials_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	return nil
@@ -51,7 +55,8 @@ func (s *AuthService) Register(username, password string) error {
 	// Get verification token
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
-		return fmt.Errorf("getting_verify_token_failed: %w", err)
+		msg := s.languagePack.Get("getting_verify_token_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	// Perform registration
@@ -66,7 +71,8 @@ func (s *AuthService) Register(username, password string) error {
 	s.configMgr.SetUserID(userIDStr)
 
 	if err := s.configMgr.SaveConfig(s.getUserData()); err != nil {
-		return fmt.Errorf("save_credentials_failed: %w", err)
+		msg := s.languagePack.Get("save_credentials_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	return nil
@@ -76,7 +82,8 @@ func (s *AuthService) Register(username, password string) error {
 func (s *AuthService) Logout() error {
 	s.configMgr.ClearCredentials()
 	if err := s.configMgr.SaveConfig(s.getUserData()); err != nil {
-		return fmt.Errorf("clear_credentials_failed: %w", err)
+		msg := s.languagePack.Get("clear_credentials_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 	return nil
 }
@@ -94,7 +101,8 @@ func (s *AuthService) GetCredentials() (token string, userID string, err error) 
 	userID, userIDOk := s.configMgr.GetUserID()
 
 	if !tokenOk || !userIDOk {
-		return "", "", fmt.Errorf("user_id_or_token_not_string")
+		msg := s.languagePack.Get("user_id_or_token_not_string")
+		return "", "", fmt.Errorf("%s", msg)
 	}
 
 	return token, userID, nil

@@ -8,22 +8,32 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"rich_chat/server_api/database"
+	"rich_chat/server_api/utils"
 )
 
 // UserServiceImpl implements UserService
 type UserServiceImpl struct {
-	userRepo      database.UserRepository
-	rateLimitRepo database.RateLimitRepository
+	userRepo          database.UserRepository
+	rateLimitRepo     database.RateLimitRepository
+	maxPasswordLength int
+	maxBioLength      int
+	maxEmailLength    int
 }
 
 // NewUserService creates a new user service
 func NewUserService(
 	userRepo database.UserRepository,
 	rateLimitRepo database.RateLimitRepository,
+	maxPasswordLength int,
+	maxBioLength int,
+	maxEmailLength int,
 ) *UserServiceImpl {
 	return &UserServiceImpl{
-		userRepo:      userRepo,
-		rateLimitRepo: rateLimitRepo,
+		userRepo:          userRepo,
+		rateLimitRepo:     rateLimitRepo,
+		maxPasswordLength: maxPasswordLength,
+		maxBioLength:      maxBioLength,
+		maxEmailLength:    maxEmailLength,
 	}
 }
 
@@ -61,6 +71,41 @@ func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, req *UserProfil
 	// Validate input
 	if req.Key == "" {
 		return ErrInvalidInput
+	}
+
+	// Validate value based on the key
+	switch req.Key {
+	case "email":
+		if err := utils.ValidateEmail(req.Value, s.maxEmailLength); err != nil {
+			log.WithFields(log.Fields{
+				"user_id": req.UserID,
+				"key":     req.Key,
+				"value":   req.Value,
+				"error":   err.Error(),
+			}).Warning("Invalid email format or length")
+
+			// Determine specific error type
+			if err.Error() == "invalid email format" {
+				return ErrInvalidEmailFormat
+			} else if err.Error() == fmt.Sprintf("email exceeds maximum length of %d", s.maxEmailLength) {
+				return ErrEmailExceedsMaxLength
+			}
+			return ErrInvalidInput
+		}
+	case "bio":
+		if err := utils.ValidateBio(req.Value, s.maxBioLength); err != nil {
+			log.WithFields(log.Fields{
+				"user_id": req.UserID,
+				"key":     req.Key,
+				"value":   req.Value,
+				"error":   err.Error(),
+			}).Warning("Bio exceeds maximum length")
+			return ErrBioExceedsMaxLength
+		}
+	case "nickname":
+		// No specific validation needed for nickname beyond length limits in the repo
+	default:
+		// Allow other fields that might be added in the future
 	}
 
 	// Check if user exists
@@ -104,6 +149,20 @@ func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, req *UserProfil
 func (s *UserServiceImpl) ChangeUserPassword(ctx context.Context, req *ChangePasswordRequest) error {
 	// Validate input
 	if req.NewPassword == "" || req.OldPassword == "" {
+		return ErrInvalidInput
+	}
+
+	// Validate new password
+	if err := utils.ValidatePassword(req.NewPassword, s.maxPasswordLength); err != nil {
+		log.WithFields(log.Fields{
+			"user_id": req.UserID,
+			"error":   err.Error(),
+		}).Warning("Invalid new password format or length")
+
+		// Check if it's a length exceeded error
+		if err.Error() == fmt.Sprintf("password exceeds maximum length of %d", s.maxPasswordLength) {
+			return ErrPasswordExceedsMaxLength
+		}
 		return ErrInvalidInput
 	}
 

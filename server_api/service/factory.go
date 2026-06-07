@@ -12,12 +12,15 @@ type ServiceConfig struct {
 	JWTExpiration     time.Duration
 	MaxUsernameLength int
 	VerifyTokenTTL    time.Duration
+	MaxPasswordLength int
+	MaxBioLength      int
+	MaxEmailLength    int
 }
 
 // Services holds all service instances
 type Services struct {
-	AuthService AuthService
-	UserService UserService
+	AuthService  AuthService
+	UserService  UserService
 	TokenService TokenService
 }
 
@@ -51,7 +54,10 @@ func NewServices(
 	authService := NewAuthService(userRepo, rateLimitRepo, tokenService, authConfig)
 
 	// Create user service
-	userService := NewUserService(userRepo, rateLimitRepo)
+	userService := NewUserService(
+		userRepo, rateLimitRepo,
+		config.MaxPasswordLength, config.MaxBioLength, config.MaxEmailLength,
+	)
 
 	return &Services{
 		AuthService:  authService,

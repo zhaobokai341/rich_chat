@@ -6,11 +6,11 @@ import (
 
 // MockAPIClient implements APIClient interface for testing
 type MockAPIClient struct {
-	GetVerifyTokenFunc   func() (string, error)
-	LoginFunc            func(username, password, verifyToken string) (*AuthResponse, error)
-	RegisterFunc         func(username, password, verifyToken string) (*AuthResponse, error)
-	DeleteUserFunc       func(userID, password, verifyToken string) error
-	GetUserProfileFunc   func(userID, verifyToken string) (*UserInfoResponse, error)
+	GetVerifyTokenFunc    func() (string, error)
+	LoginFunc             func(username, password, verifyToken string) (*AuthResponse, error)
+	RegisterFunc          func(username, password, verifyToken string) (*AuthResponse, error)
+	DeleteUserFunc        func(userID, password, verifyToken string) error
+	GetUserProfileFunc    func(userID, verifyToken string) (*UserInfoResponse, error)
 	UpdateUserProfileFunc func(userID, key, value, verifyToken string) error
 	ChangePasswordFunc    func(userID, oldPassword, newPassword, verifyToken string) error
 	CheckServerHealthFunc func() (bool, error)
@@ -80,14 +80,14 @@ func (m *MockAPIClient) CheckServerHealth() (bool, error) {
 
 // MockConfigManager implements ConfigManager interface for testing
 type MockConfigManager struct {
-	ReadConfigFunc   func() (map[string]interface{}, error)
-	SaveConfigFunc   func(data map[string]interface{}) error
-	GetTokenFunc     func() (string, bool)
-	GetUserIDFunc    func() (string, bool)
-	SetTokenFunc     func(token string)
-	SetUserIDFunc    func(userID string)
+	ReadConfigFunc       func() (map[string]interface{}, error)
+	SaveConfigFunc       func(data map[string]interface{}) error
+	GetTokenFunc         func() (string, bool)
+	GetUserIDFunc        func() (string, bool)
+	SetTokenFunc         func(token string)
+	SetUserIDFunc        func(userID string)
 	ClearCredentialsFunc func()
-	
+
 	data map[string]interface{}
 }
 

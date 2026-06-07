@@ -10,6 +10,7 @@ something/
 client/config
 client/rich_chat_client
 server_api/rich_chat_server
+coverage.out
 
 # Dependencies
 *.pid

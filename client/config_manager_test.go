@@ -11,8 +11,9 @@ import (
 func TestNewFileConfigManager(t *testing.T) {
 	configDir := "/tmp/test_config"
 	configFile := "config.json"
+	mockLangPack := &LanguagePackWrapper{lp: nil}
 
-	manager := NewFileConfigManager(configDir, configFile)
+	manager := NewFileConfigManager(configDir, configFile, mockLangPack)
 
 	assert.NotNil(t, manager)
 	assert.Equal(t, configDir, manager.configDir)
@@ -62,7 +63,7 @@ func TestFileConfigManager_ReadConfig(t *testing.T) {
 				return os.WriteFile(configPath, []byte(`{invalid json`), 0644)
 			},
 			expectedError: true,
-			checkData: nil,
+			checkData:     nil,
 		},
 	}
 
@@ -77,7 +78,8 @@ func TestFileConfigManager_ReadConfig(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			manager := NewFileConfigManager(testDir, "test.json")
+			mockLangPack := &LanguagePackWrapper{lp: nil}
+			manager := NewFileConfigManager(testDir, "test.json", mockLangPack)
 			data, err := manager.ReadConfig()
 
 			if tt.expectedError {
@@ -98,7 +100,8 @@ func TestFileConfigManager_SaveConfig(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	manager := NewFileConfigManager(tempDir, "test.json")
+	mockLangPack := &LanguagePackWrapper{lp: nil}
+	manager := NewFileConfigManager(tempDir, "test.json", mockLangPack)
 
 	testData := map[string]interface{}{
 		"token":    "test-token-123",
@@ -122,7 +125,8 @@ func TestFileConfigManager_SaveConfig(t *testing.T) {
 }
 
 func TestFileConfigManager_GetToken(t *testing.T) {
-	manager := NewFileConfigManager("/tmp/test", "test.json")
+	mockLangPack := &LanguagePackWrapper{lp: nil}
+	manager := NewFileConfigManager("/tmp/test", "test.json", mockLangPack)
 
 	tests := []struct {
 		name           string
@@ -166,13 +170,14 @@ func TestFileConfigManager_GetToken(t *testing.T) {
 }
 
 func TestFileConfigManager_GetUserID(t *testing.T) {
-	manager := NewFileConfigManager("/tmp/test", "test.json")
+	mockLangPack := &LanguagePackWrapper{lp: nil}
+	manager := NewFileConfigManager("/tmp/test", "test.json", mockLangPack)
 
 	tests := []struct {
-		name            string
-		setupData       map[string]interface{}
-		expectedUserID  string
-		expectedExists  bool
+		name           string
+		setupData      map[string]interface{}
+		expectedUserID string
+		expectedExists bool
 	}{
 		{
 			name: "user_id exists",
@@ -210,7 +215,8 @@ func TestFileConfigManager_GetUserID(t *testing.T) {
 }
 
 func TestFileConfigManager_SetToken(t *testing.T) {
-	manager := NewFileConfigManager("/tmp/test", "test.json")
+	mockLangPack := &LanguagePackWrapper{lp: nil}
+	manager := NewFileConfigManager("/tmp/test", "test.json", mockLangPack)
 
 	manager.SetToken("new-token-abc")
 
@@ -218,7 +224,8 @@ func TestFileConfigManager_SetToken(t *testing.T) {
 }
 
 func TestFileConfigManager_SetUserID(t *testing.T) {
-	manager := NewFileConfigManager("/tmp/test", "test.json")
+	mockLangPack := &LanguagePackWrapper{lp: nil}
+	manager := NewFileConfigManager("/tmp/test", "test.json", mockLangPack)
 
 	manager.SetUserID("789")
 
@@ -231,7 +238,7 @@ func TestFileConfigManager_ClearCredentials(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	manager := NewFileConfigManager(tempDir, "test.json")
+	manager := NewFileConfigManager(tempDir, "test.json", &LanguagePackWrapper{lp: nil})
 
 	// Set initial credentials
 	manager.userData = map[string]interface{}{
@@ -298,8 +305,9 @@ func TestFileConfigManager_ensureConfigDir(t *testing.T) {
 			}
 
 			manager := &FileConfigManager{
-				configDir: tt.dirPath,
-				userData:  make(map[string]interface{}),
+				configDir:    tt.dirPath,
+				userData:     make(map[string]interface{}),
+				languagePack: &LanguagePackWrapper{lp: nil},
 			}
 
 			err := manager.ensureConfigDir()
@@ -323,7 +331,8 @@ func TestFileConfigManager_createEmptyConfig(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.RemoveAll(tempDir)
 
-	manager := NewFileConfigManager(tempDir, "test.json")
+	mockLangPack := &LanguagePackWrapper{lp: nil}
+	manager := NewFileConfigManager(tempDir, "test.json", mockLangPack)
 
 	configPath := filepath.Join(tempDir, "empty.json")
 	err = manager.createEmptyConfig(configPath)

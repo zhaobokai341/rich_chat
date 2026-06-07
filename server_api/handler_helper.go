@@ -11,6 +11,9 @@ import (
 
 // handleServiceError converts service errors to HTTP responses
 func handleServiceError(c *gin.Context, err error) {
+	// Get language pack for this request
+	lp := getLanguagePackFromContext(c)
+
 	switch err {
 	case service.ErrInvalidInput:
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -34,7 +37,36 @@ func handleServiceError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{
 			"message": lp.G("username_already_exists"),
 		})
+	case service.ErrInvalidEmailFormat:
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Warning("Invalid email format error occurred")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_input") + ": " + err.Error(),
+		})
+	case service.ErrEmailExceedsMaxLength:
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Warning("Email length validation error occurred")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_input") + ": " + err.Error(),
+		})
+	case service.ErrBioExceedsMaxLength:
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Warning("Bio length validation error occurred")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_input") + ": " + err.Error(),
+		})
+	case service.ErrPasswordExceedsMaxLength:
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Warning("Password length validation error occurred")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_input") + ": " + err.Error(),
+		})
 	default:
+		// Log as error for genuine server-side issues
 		log.WithFields(log.Fields{
 			"error": err.Error(),
 		}).Error("Service error occurred")

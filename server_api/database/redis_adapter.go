@@ -218,7 +218,7 @@ func (r *RedisRateLimitRepository) CheckIPBlocked(ip string) (bool, error) {
 	// Cache miss - would need to query database
 	// For now, return false (not blocked) and set negative cache
 	r.cache.SetWithTTL(negativeCacheKey, "not_blocked", 60) // Cache negative result for 60 seconds
-	// In production, you'd implement DB query here
+	// TODO: In production, you'd implement DB query here
 	return false, nil
 }
 

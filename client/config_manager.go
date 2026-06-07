@@ -19,17 +19,19 @@ type ConfigManager interface {
 
 // FileConfigManager implements ConfigManager using JSON file storage
 type FileConfigManager struct {
-	configDir  string
-	configFile string
-	userData   map[string]interface{}
+	configDir    string
+	configFile   string
+	userData     map[string]interface{}
+	languagePack *LanguagePackWrapper
 }
 
 // NewFileConfigManager creates a new file-based config manager
-func NewFileConfigManager(configDir, configFile string) *FileConfigManager {
+func NewFileConfigManager(configDir, configFile string, languagePack *LanguagePackWrapper) *FileConfigManager {
 	return &FileConfigManager{
-		configDir:  configDir,
-		configFile: configFile,
-		userData:   make(map[string]interface{}),
+		configDir:    configDir,
+		configFile:   configFile,
+		userData:     make(map[string]interface{}),
+		languagePack: languagePack,
 	}
 }
 
@@ -52,11 +54,13 @@ func (m *FileConfigManager) ReadConfig() (map[string]interface{}, error) {
 	// Read and parse config file
 	fileData, err := os.ReadFile(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("read_config_file_error: %w", err)
+		msg := m.languagePack.Get("read_config_file_error")
+		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
 	if err := json.Unmarshal(fileData, &m.userData); err != nil {
-		return nil, fmt.Errorf("parse_config_file_error: %w", err)
+		msg := m.languagePack.Get("parse_config_file_error")
+		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
 	return m.userData, nil
@@ -66,12 +70,14 @@ func (m *FileConfigManager) ReadConfig() (map[string]interface{}, error) {
 func (m *FileConfigManager) SaveConfig(data map[string]interface{}) error {
 	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("map_convert_to_str_error: %w", err)
+		msg := m.languagePack.Get("map_convert_to_str_error")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	fullPath := fmt.Sprintf("%s/%s", m.configDir, m.configFile)
 	if err := os.WriteFile(fullPath, jsonBytes, 0644); err != nil {
-		return fmt.Errorf("write_config_file_error: %w", err)
+		msg := m.languagePack.Get("write_config_file_error")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	m.userData = data
@@ -121,15 +127,18 @@ func (m *FileConfigManager) ensureConfigDir() error {
 	if err != nil {
 		if os.IsNotExist(err) {
 			if err := os.Mkdir(m.configDir, 0755); err != nil {
-				return fmt.Errorf("create_config_dir_error: %w", err)
+				msg := m.languagePack.Get("create_config_dir_error")
+				return fmt.Errorf("%s: %w", msg, err)
 			}
 			return nil
 		}
-		return fmt.Errorf("stat_config_dir_error: %w", err)
+		msg := m.languagePack.Get("stat_config_dir_error")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	if !dirInfo.IsDir() {
-		return fmt.Errorf("config_dir_is_not_dir")
+		msg := m.languagePack.Get("config_dir_is_not_dir")
+		return fmt.Errorf("%s", msg)
 	}
 
 	return nil
@@ -139,12 +148,14 @@ func (m *FileConfigManager) ensureConfigDir() error {
 func (m *FileConfigManager) createEmptyConfig(path string) error {
 	file, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("create_config_file_error: %w", err)
+		msg := m.languagePack.Get("create_config_file_error")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 	defer file.Close()
 
 	if _, err := file.WriteString("{}"); err != nil {
-		return fmt.Errorf("write_config_file_error: %w", err)
+		msg := m.languagePack.Get("write_config_file_error")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	return nil

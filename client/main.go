@@ -16,8 +16,8 @@ type Application struct {
 
 // NewApplication creates and initializes a new application instance
 func NewApplication() *Application {
-	// Initialize language pack
-	lp := NewLanguagePackWrapper("client/main.json", LANGUAGE)
+	// Initialize language pack with default language
+	lp := NewLanguagePackWrapper("client/main.json", DEFAULT_LANGUAGE)
 
 	// Initialize HTTP client
 	httpClient := NewHTTPClient(USER_AGENT)
@@ -27,14 +27,14 @@ func NewApplication() *Application {
 	apiClient := NewRestAPIClient(httpClient, baseURL, lp)
 
 	// Initialize config manager
-	configMgr := NewFileConfigManager(CONFIG_DIR, CONFIG_FILE)
+	configMgr := NewFileConfigManager(CONFIG_DIR, CONFIG_FILE, lp)
 
 	// Initialize token extractor
-	tokenExtractor := NewJWTTokenExtractor()
+	tokenExtractor := NewJWTTokenExtractorWithLanguagePack(lp)
 
 	// Initialize services
-	authService := NewAuthService(apiClient, configMgr, tokenExtractor)
-	userService := NewUserService(apiClient, configMgr, tokenExtractor)
+	authService := NewAuthService(apiClient, configMgr, tokenExtractor, lp)
+	userService := NewUserService(apiClient, configMgr, tokenExtractor, lp)
 
 	// Initialize UI handler
 	uiHandler := NewUIHandler(authService, userService, apiClient, configMgr, lp)

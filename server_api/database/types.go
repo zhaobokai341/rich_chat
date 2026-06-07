@@ -8,6 +8,7 @@ import (
 type User struct {
 	ID             int        `db:"id"`
 	Username       string     `db:"username"`
+	Email          string     `db:"email"`
 	Nickname       string     `db:"nickname"`
 	Bio            string     `db:"bio"`
 	PasswordHash   string     `db:"password_hash"`
@@ -19,6 +20,7 @@ type User struct {
 // UserInfo represents user profile information (without sensitive data)
 type UserInfo struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
 	Nickname string `json:"nickname"`
 	Bio      string `json:"bio"`
 }

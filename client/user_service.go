@@ -9,14 +9,16 @@ type UserService struct {
 	apiClient      APIClient
 	configMgr      ConfigManager
 	tokenExtractor TokenExtractor
+	languagePack   *LanguagePackWrapper
 }
 
 // NewUserService creates a new user service
-func NewUserService(apiClient APIClient, configMgr ConfigManager, tokenExtractor TokenExtractor) *UserService {
+func NewUserService(apiClient APIClient, configMgr ConfigManager, tokenExtractor TokenExtractor, languagePack *LanguagePackWrapper) *UserService {
 	return &UserService{
 		apiClient:      apiClient,
 		configMgr:      configMgr,
 		tokenExtractor: tokenExtractor,
+		languagePack:   languagePack,
 	}
 }
 
@@ -24,12 +26,14 @@ func NewUserService(apiClient APIClient, configMgr ConfigManager, tokenExtractor
 func (s *UserService) DeleteAccount(password string) error {
 	userID, exists := s.configMgr.GetUserID()
 	if !exists {
-		return fmt.Errorf("user_id_not_found")
+		msg := s.languagePack.Get("user_id_not_found")
+		return fmt.Errorf("%s", msg)
 	}
 
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
-		return fmt.Errorf("getting_verify_token_failed: %w", err)
+		msg := s.languagePack.Get("getting_verify_token_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	if err := s.apiClient.DeleteUser(userID, password, verifyToken); err != nil {
@@ -39,7 +43,8 @@ func (s *UserService) DeleteAccount(password string) error {
 	// Clear local credentials
 	s.configMgr.ClearCredentials()
 	if err := s.configMgr.SaveConfig(s.getUserData()); err != nil {
-		return fmt.Errorf("clear_credentials_failed: %w", err)
+		msg := s.languagePack.Get("clear_credentials_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	return nil
@@ -49,12 +54,14 @@ func (s *UserService) DeleteAccount(password string) error {
 func (s *UserService) GetProfile() (*UserData, error) {
 	userID, exists := s.configMgr.GetUserID()
 	if !exists {
-		return nil, fmt.Errorf("user_id_not_found")
+		msg := s.languagePack.Get("user_id_not_found")
+		return nil, fmt.Errorf("%s", msg)
 	}
 
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
-		return nil, fmt.Errorf("getting_verify_token_failed: %w", err)
+		msg := s.languagePack.Get("getting_verify_token_failed")
+		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
 	resp, err := s.apiClient.GetUserProfile(userID, verifyToken)
@@ -63,7 +70,8 @@ func (s *UserService) GetProfile() (*UserData, error) {
 	}
 
 	if resp.Data == nil {
-		return nil, fmt.Errorf("failed_to_parse_user_info_response")
+		msg := s.languagePack.Get("failed_to_parse_user_info_response")
+		return nil, fmt.Errorf("%s", msg)
 	}
 
 	return resp.Data, nil
@@ -73,12 +81,14 @@ func (s *UserService) GetProfile() (*UserData, error) {
 func (s *UserService) UpdateProfile(key, value string) error {
 	userID, exists := s.configMgr.GetUserID()
 	if !exists {
-		return fmt.Errorf("user_id_not_found")
+		msg := s.languagePack.Get("user_id_not_found")
+		return fmt.Errorf("%s", msg)
 	}
 
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
-		return fmt.Errorf("getting_verify_token_failed: %w", err)
+		msg := s.languagePack.Get("getting_verify_token_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	if err := s.apiClient.UpdateUserProfile(userID, key, value, verifyToken); err != nil {
@@ -92,12 +102,14 @@ func (s *UserService) UpdateProfile(key, value string) error {
 func (s *UserService) ChangePassword(oldPassword, newPassword string) error {
 	userID, exists := s.configMgr.GetUserID()
 	if !exists {
-		return fmt.Errorf("user_id_not_found")
+		msg := s.languagePack.Get("user_id_not_found")
+		return fmt.Errorf("%s", msg)
 	}
 
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
-		return fmt.Errorf("getting_verify_token_failed: %w", err)
+		msg := s.languagePack.Get("getting_verify_token_failed")
+		return fmt.Errorf("%s: %w", msg, err)
 	}
 
 	if err := s.apiClient.ChangePassword(userID, oldPassword, newPassword, verifyToken); err != nil {

@@ -71,12 +71,12 @@ func (s *AuthServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 			"username": req.Username,
 			"error":    err.Error(),
 		}).Warning("User not found during login")
-		
+
 		// Track failed login attempt
 		if s.rateLimitRepo != nil {
 			_ = s.rateLimitRepo.TrackLoginAttempt(req.Username, false)
 		}
-		
+
 		return nil, ErrInvalidPassword
 	}
 
@@ -86,12 +86,12 @@ func (s *AuthServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 			"username": req.Username,
 			"user_id":  user.ID,
 		}).Warning("Invalid password during login")
-		
+
 		// Track failed login attempt
 		if s.rateLimitRepo != nil {
 			_ = s.rateLimitRepo.TrackLoginAttempt(req.Username, false)
 		}
-		
+
 		return nil, ErrInvalidPassword
 	}
 
@@ -138,7 +138,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, req *RegisterRequest) (*
 
 	// Validate username length
 	if len(req.Username) > s.config.MaxUsernameLength {
-		return nil, fmt.Errorf("%w: username must be less than %d characters", 
+		return nil, fmt.Errorf("%w: username must be less than %d characters",
 			ErrInvalidInput, s.config.MaxUsernameLength)
 	}
 
@@ -169,11 +169,11 @@ func (s *AuthServiceImpl) Register(ctx context.Context, req *RegisterRequest) (*
 	userID, err := s.userRepo.CreateUser(req.Username, string(passwordHash))
 	if err != nil {
 		// Check for duplicate key error
-		if strings.Contains(err.Error(), "duplicate key") || 
-		   strings.Contains(err.Error(), "unique constraint") {
+		if strings.Contains(err.Error(), "duplicate key") ||
+			strings.Contains(err.Error(), "unique constraint") {
 			return nil, ErrUsernameAlreadyExists
 		}
-		
+
 		log.WithFields(log.Fields{
 			"username": req.Username,
 			"error":    err.Error(),

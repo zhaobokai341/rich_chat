@@ -5,6 +5,7 @@ import (
 	"rich_chat/lang_pack_load"
 	"rich_chat/server_api/database"
 	"rich_chat/server_api/service"
+	"rich_chat/server_api/websocket"
 	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
@@ -12,13 +13,12 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// TODO: force HTTPS
-
 // WebServerApi holds all service dependencies for HTTP handlers
 type WebServerApi struct {
 	authService  service.AuthService
 	userService  service.UserService
 	tokenService service.TokenService
+	websocketHub *websocket.Hub
 }
 
 // Claims represents JWT claims structure
@@ -31,14 +31,9 @@ var web_server_engine *gin.Engine
 var web_server_api *WebServerApi
 var dbService *database.DatabaseService
 var services *service.Services
-var lp *lang_pack_load.LanguagePack
 
 // Initialize all components with dependency injection
 func initialize() {
-	// Load language pack
-	lp = lang_pack_load.NewLanguagePack("server_api/main.json", LANGUAGE)
-	lp.Load()
-
 	// Initialize Redis manager
 	redisManager := redis_init()
 
@@ -84,7 +79,16 @@ func initialize() {
 		JWTExpiration:     JWT_EXPIRE_TIME,
 		MaxUsernameLength: ALLOW_MAX_LENGTH_OF_USERNAME,
 		VerifyTokenTTL:    VERIFY_TOKEN_EXPIRE_TIME,
+		MaxPasswordLength: ALLOW_MAX_LENGTH_OF_PASSWORD,
+		MaxBioLength:      ALLOW_MAX_LENGTH_OF_BIO,
+		MaxEmailLength:    ALLOW_MAX_LENGTH_OF_EMAIL,
 	})
+
+	// Initialize WebSocket hub
+	websocketHub := websocket.NewHub()
+
+	// Start the hub in a separate goroutine
+	go websocketHub.Run()
 
 	// Initialize web server API with injected services
 	web_server_engine = gin.Default()
@@ -92,7 +96,11 @@ func initialize() {
 		authService:  services.AuthService,
 		userService:  services.UserService,
 		tokenService: services.TokenService,
+		websocketHub: websocketHub,
 	}
+
+	// Add middleware to extract language from request
+	web_server_engine.Use(languageMiddleware())
 
 	// Middleware
 	web_server_engine.Use(
@@ -133,6 +141,18 @@ func initialize() {
 	web_server_engine.GET("/api/users/:user_id/profile", web_server_api.GetUserProfile)
 	web_server_engine.PATCH("/api/users/:user_id/profile", web_server_api.ChangeUserProfile)
 	web_server_engine.PUT("/api/users/:user_id/password", web_server_api.ChangeUserPassword)
+
+	// WebSocket endpoint for real-time chat
+	websocketConfig := websocket.Config{
+		WRITEWAIT:      WEBSOCKET_WRITE_WAIT,
+		PONGWAIT:       WEBSOCKET_PONG_WAIT,
+		PINGPERIOD:     WEBSOCKET_PING_PERIOD,
+		MAXMESSAGESIZE: WEBSOCKET_MAX_MESSAGE_SIZE,
+	}
+	websocketHandler := websocket.NewHandler(web_server_api.websocketHub, web_server_api.authService, web_server_api.userService, JWT_SECRET, websocketConfig)
+	web_server_engine.GET("/ws/chat", func(c *gin.Context) {
+		websocketHandler.WebSocketEndpoint(c)
+	})
 }
 
 func main() {
@@ -157,4 +177,43 @@ func main() {
 	if err := web_server_engine.Run(WEB_PORT); err != nil {
 		log.Fatal("Server failed to start: ", err)
 	}
+}
+
+// languageMiddleware extracts language from request and stores it in context
+func languageMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Extract language from query param, form data, or header
+		lang := c.Query("language")
+		if lang == "" {
+			lang = c.PostForm("language")
+		}
+		if lang == "" {
+			lang = c.GetHeader("X-Language")
+		}
+		if lang == "" {
+			lang = DEFAULT_LANGUAGE // fallback to default
+		}
+
+		// Store the language in context for later use
+		c.Set("language", lang)
+
+		c.Next()
+	}
+}
+
+// getLanguagePackFromContext returns a language pack based on the language in the request context
+func getLanguagePackFromContext(c *gin.Context) *lang_pack_load.LanguagePack {
+	lang, exists := c.Get("language")
+	if !exists {
+		lang = DEFAULT_LANGUAGE
+	}
+
+	language, ok := lang.(string)
+	if !ok {
+		language = DEFAULT_LANGUAGE
+	}
+
+	lp := lang_pack_load.NewLanguagePack("server_api/main.json", language)
+	lp.Load()
+	return lp
 }

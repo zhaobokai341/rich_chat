@@ -49,4 +49,3 @@ func input(text string) (string, error) {
 	}
 	return input, nil
 }
-

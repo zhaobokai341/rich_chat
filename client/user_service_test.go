@@ -61,12 +61,13 @@ func TestUserService_DeleteAccount(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockAPI, mockConfig)
 			}
 
-			service := NewUserService(mockAPI, mockConfig, mockExtractor)
+			service := NewUserService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			err := service.DeleteAccount(tt.password)
 
 			if tt.expectedError {
@@ -151,12 +152,13 @@ func TestUserService_GetProfile(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockAPI, mockConfig)
 			}
 
-			service := NewUserService(mockAPI, mockConfig, mockExtractor)
+			service := NewUserService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			data, err := service.GetProfile()
 
 			if tt.expectedError {
@@ -237,12 +239,13 @@ func TestUserService_UpdateProfile(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockAPI, mockConfig)
 			}
 
-			service := NewUserService(mockAPI, mockConfig, mockExtractor)
+			service := NewUserService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			err := service.UpdateProfile(tt.key, tt.value)
 
 			if tt.expectedError {
@@ -318,12 +321,13 @@ func TestUserService_ChangePassword(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockAPI, mockConfig)
 			}
 
-			service := NewUserService(mockAPI, mockConfig, mockExtractor)
+			service := NewUserService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			err := service.ChangePassword(tt.oldPassword, tt.newPassword)
 
 			if tt.expectedError {

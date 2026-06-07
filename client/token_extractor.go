@@ -13,34 +13,47 @@ type TokenExtractor interface {
 }
 
 // JWTTokenExtractor implements TokenExtractor for JWT tokens
-type JWTTokenExtractor struct{}
+type JWTTokenExtractor struct {
+	languagePack *LanguagePackWrapper
+}
 
 // NewJWTTokenExtractor creates a new JWT token extractor
 func NewJWTTokenExtractor() *JWTTokenExtractor {
 	return &JWTTokenExtractor{}
 }
 
+// NewJWTTokenExtractorWithLanguagePack creates a new JWT token extractor with language pack
+func NewJWTTokenExtractorWithLanguagePack(languagePack *LanguagePackWrapper) *JWTTokenExtractor {
+	return &JWTTokenExtractor{
+		languagePack: languagePack,
+	}
+}
+
 // ExtractUserID extracts the user_id from a JWT token
 func (e *JWTTokenExtractor) ExtractUserID(token string) (string, error) {
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
-		return "", fmt.Errorf("invalid token format")
+		msg := getErrorMessage(e.languagePack, "invalid_token_format")
+		return "", fmt.Errorf("%s", msg)
 	}
 
 	// Decode the payload (second part)
 	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
-		return "", fmt.Errorf("failed to decode token payload: %v", err)
+		msg := getErrorMessage(e.languagePack, "failed_to_decode_token_payload")
+		return "", fmt.Errorf("%s: %v", msg, err)
 	}
 
 	var claims map[string]interface{}
 	if err := json.Unmarshal(payload, &claims); err != nil {
-		return "", fmt.Errorf("failed to parse token claims: %v", err)
+		msg := getErrorMessage(e.languagePack, "failed_to_parse_token_claims")
+		return "", fmt.Errorf("%s: %v", msg, err)
 	}
 
 	userID, ok := claims["user_id"]
 	if !ok {
-		return "", fmt.Errorf("user_id not found in token")
+		msg := getErrorMessage(e.languagePack, "user_id_not_found_in_token")
+		return "", fmt.Errorf("%s", msg)
 	}
 
 	// Convert to string
@@ -52,4 +65,12 @@ func (e *JWTTokenExtractor) ExtractUserID(token string) (string, error) {
 	default:
 		return fmt.Sprintf("%v", v), nil
 	}
+}
+
+// getErrorMessage safely gets error message from language pack, falling back to key if languagePack is nil
+func getErrorMessage(lp *LanguagePackWrapper, key string) string {
+	if lp == nil {
+		return key // Return the key itself if language pack is not available
+	}
+	return lp.Get(key)
 }

@@ -2,7 +2,7 @@
 # WebSocket聊天实现检查清单
 
 **Project / 项目:** Rich Chat  
-**Feature / 功能:** Real-time Chat with Encrypted Messages / 实时聊天与加密消息  
+**Feature / 功能:** Real-time Chat with End-to-End Encrypted Messages / 实时聊天与端到端加密消息  
 **Status / 状态:** Planning Phase / 规划阶段  
 
 ---
@@ -17,14 +17,17 @@
   go get github.com/gorilla/websocket
   ```
 
-- [ ] Generate master encryption key / 生成主加密密钥
+- [ ] Install E2EE dependencies / 安装E2EE依赖
   ```bash
-  openssl rand -base64 32
+  cd server_api
+  go get golang.org/x/crypto/nacl/box
   ```
 
-- [ ] Update `.env` file with encryption key / 用加密密钥更新`.env`文件
+- [ ] Update `.env` file with E2EE settings / 用E2EE设置更新`.env`文件
   ```bash
-  MASTER_ENCRYPTION_KEY=your-generated-key-here
+  E2EE_KEY_ALGORITHM=RSA-2048
+  E2EE_KEY_SIZE=2048
+  E2EE_SYMMETRIC_ALGORITHM=AES-256-GCM
   ```
 
 - [ ] Create feature branch / 创建功能分支
@@ -44,10 +47,10 @@
 
 - [ ] Execute SQL schema from implementation guide / 执行实现指南中的SQL模式
   - [ ] `chat_sessions` table created / 创建chat_sessions表
-  - [ ] `chat_session_participants` table created / 创建chat_session_participants表
-  - [ ] `chat_messages` table created / 创建chat_messages表
-  - [ ] `chat_message_index` table created / 创建chat_message_index表
-  - [ ] `user_encryption_keys` table created / 创建user_encryption_keys表
+  - [ ] `session_participants` table created / 创建session_participants表
+  - [ ] `encrypted_messages` table created / 创建encrypted_messages表
+  - [ ] `user_keys` table created / 创建user_keys表
+  - [ ] `offline_encrypted_messages` table created / 创建offline_encrypted_messages表
   - [ ] `user_online_status` table created / 创建user_online_status表
 
 - [ ] Create performance indexes / 创建性能索引
@@ -119,34 +122,47 @@
 
 ## Phase 2: Core Messaging (Week 3-4) / 第二阶段：核心消息(第3-4周)
 
-### Encryption Service / 加密服务
+### E2EE Service / E2EE服务
 
-- [ ] Create `service/encryption_service.go` / 创建encryption_service.go
-  - [ ] EncryptionService interface defined / 定义EncryptionService接口
-  - [ ] AES-256-GCM implementation / AES-256-GCM实现
-  - [ ] EncryptMessage() method / EncryptMessage()方法
-  - [ ] DecryptMessage() method / DecryptMessage()方法
+- [ ] Create `service/e2ee_service.go` / 创建e2ee_service.go
+  - [ ] E2EEService interface defined / 定义E2EEService接口
+  - [ ] RSA-2048/AES-256-GCM implementation / RSA-2048/AES-256-GCM实现
+  - [ ] GenerateKeyPair() method / GenerateKeyPair()方法
+  - [ ] EncryptMessage() method with session key / EncryptMessage()方法带会话密钥
+  - [ ] DecryptMessage() method with session key / DecryptMessage()方法带会话密钥
 
 - [ ] Write unit tests / 编写单元测试
-  - [ ] Test encrypt/decrypt roundtrip / 测试加密/解密往返
-  - [ ] Test wrong key failure / 测试错误密钥失败
-  - [ ] Test tampered data detection / 测试篡改数据检测
+  - [ ] Test E2EE encrypt/decrypt roundtrip / 测试E2EE加密/解密往返
+  - [ ] Test key generation and parsing / 测试密钥生成和解析
+  - [ ] Test session key encryption/decryption / 测试会话密钥加密/解密
+  - [ ] Test message integrity verification / 测试消息完整性验证
   ```bash
   cd server_api/service
-  go test -v -run TestEncryption
+  go test -v -run TestE2EE
   ```
+
+### Key Repository / 密钥仓库
+
+- [ ] Create `database/key_repository.go` / 创建key_repository.go
+  - [ ] KeyRepository interface / KeyRepository接口
+  - [ ] SaveUserKeys() method / SaveUserKeys()方法
+  - [ ] GetUserPublicKey() method / GetUserPublicKey()方法
+  - [ ] GetUserPrivateKey() method / GetUserPrivateKey()方法
+  - [ ] UpdateUserKey() method / UpdateUserKey()方法
 
 ### Message Repository / 消息仓库
 
 - [ ] Create `database/message_repository.go` / 创建message_repository.go
   - [ ] MessageRepository interface / MessageRepository接口
-  - [ ] CreateMessage() method / CreateMessage()方法
+  - [ ] SaveEncryptedMessage() method / SaveEncryptedMessage()方法
   - [ ] GetMessagesBySession() with pagination / 带分页的GetMessagesBySession()
-  - [ ] MarkMessageAsRead() method / MarkMessageAsRead()方法
-  - [ ] UpdateDeliveryStatus() method / UpdateDeliveryStatus()方法
+  - [ ] SaveOfflineEncryptedMessage() method / SaveOfflineEncryptedMessage()方法
+  - [ ] GetOfflineMessages() method / GetOfflineMessages()方法
+  - [ ] MarkMessageAsDelivered() method / MarkMessageAsDelivered()方法
 
 - [ ] Integrate with DatabaseService / 与DatabaseService集成
   - [ ] Add messageRepo to DatabaseService / 将messageRepo添加到DatabaseService
+  - [ ] Add keyRepo to DatabaseService / 将keyRepo添加到DatabaseService
   - [ ] Update InitializeDatabaseService() / 更新InitializeDatabaseService()
 
 ### Chat Service / 聊天服务
@@ -421,20 +437,26 @@
 ### Security Audit / 安全审计
 
 - [ ] Code review / 代码审查
-  - [ ] Review encryption implementation / 审查加密实现
+  - [ ] Review E2EE implementation / 审查E2EE实现
   - [ ] Check for hardcoded secrets / 检查硬编码的秘密
   - [ ] Verify input validation / 验证输入验证
   - [ ] Review error handling / 审查错误处理
+  - [ ] Verify private key encryption / 验证私钥加密
+  - [ ] Check session key management / 检查会话密钥管理
 
 - [ ] Penetration testing / 渗透测试
   - [ ] Test WebSocket injection attacks / 测试WebSocket注入攻击
   - [ ] Attempt unauthorized message access / 尝试未经授权的消息访问
+  - [ ] Test E2EE message interception / 测试E2EE消息拦截
+  - [ ] Test private key extraction attempts / 测试私钥提取尝试
+  - [ ] Test session key compromise scenarios / 测试会话密钥泄露场景
   - [ ] Test rate limiting effectiveness / 测试速率限制有效性
   - [ ] Check for XSS vulnerabilities / 检查XSS漏洞
 
 - [ ] Compliance check / 合规性检查
   - [ ] GDPR compliance (data retention) / GDPR合规性(数据保留)
-  - [ ] Encryption standards met / 符合加密标准
+  - [ ] E2EE standards met (RSA-2048/AES-256-GCM) / 符合E2EE标准(RSA-2048/AES-256-GCM)
+  - [ ] Key management compliance / 密钥管理合规性
   - [ ] Audit logging complete / 审计日志完整
 
 ### Production Deployment / 生产部署

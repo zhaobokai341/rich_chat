@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/x/term"
 )
@@ -80,6 +81,7 @@ func (h *UIHandler) handleUnauthenticated() {
 	// 1. Login
 	// 2. Register
 	// 3. Exit
+	// 4. Change language
 	switch choice {
 	case "1":
 		h.handleLogin()
@@ -88,6 +90,8 @@ func (h *UIHandler) handleUnauthenticated() {
 	case "3":
 		h.printInfo("exit")
 		os.Exit(0)
+	case "4":
+		h.handleChangeLanguage()
 	default:
 		h.printError("invalid_choice")
 	}
@@ -125,6 +129,7 @@ func (h *UIHandler) showMainMenu() {
 		// 3. Change password
 		// 4. Logout
 		// 5. Delete account
+		// 6. Change language
 		switch choice {
 		case "1":
 			h.printInfo("exit")
@@ -139,6 +144,8 @@ func (h *UIHandler) showMainMenu() {
 		case "5":
 			h.handleDeleteAccount()
 			return
+		case "6":
+			h.handleChangeLanguage()
 		default:
 			h.printError("invalid_choice")
 		}
@@ -282,6 +289,7 @@ func (h *UIHandler) viewUserInfo() {
 
 	fmt.Println(h.languagePack.Get("user_info_title"))
 	fmt.Printf(h.languagePack.Get("user_info_username")+"\n", userData.Username)
+	fmt.Printf(h.languagePack.Get("user_info_email")+"\n", userData.Email)
 	fmt.Printf(h.languagePack.Get("user_info_nickname")+"\n", userData.Nickname)
 	fmt.Printf(h.languagePack.Get("user_info_bio")+"\n", userData.Bio)
 	fmt.Println()
@@ -312,6 +320,19 @@ func (h *UIHandler) modifyUserInfo() {
 			h.printSuccess("user_info_changed_successfully")
 			return
 		case "2":
+			newEmail, err := input(h.languagePack.Get("enter_new_email"))
+			if err != nil {
+				h.printError("failed_to_read_input")
+				return
+			}
+			newEmail = strings.TrimSpace(newEmail)
+			if err := h.userService.UpdateProfile("email", newEmail); err != nil {
+				h.printError(err)
+				return
+			}
+			h.printSuccess("user_info_changed_successfully")
+			return
+		case "3":
 			newBio, err := input(h.languagePack.Get("enter_new_bio"))
 			if err != nil {
 				h.printError("failed_to_read_input")
@@ -324,7 +345,7 @@ func (h *UIHandler) modifyUserInfo() {
 			}
 			h.printSuccess("user_info_changed_successfully")
 			return
-		case "3":
+		case "4":
 			return
 		default:
 			h.printError("invalid_choice")
@@ -367,7 +388,22 @@ func (h *UIHandler) handleChangePassword() {
 		}
 
 		if len(newPassword) < 8 {
-			h.printWarning("password_too_short")
+			// Check if password contains only digits or only letters
+			isOnlyDigits := true
+			isOnlyLetters := true
+
+			for _, char := range newPassword {
+				if !unicode.IsDigit(char) {
+					isOnlyDigits = false
+				}
+				if !unicode.IsLetter(char) {
+					isOnlyLetters = false
+				}
+			}
+
+			if isOnlyDigits || isOnlyLetters {
+				h.printWarning("password_too_short")
+			}
 		}
 
 		// Confirm new password
@@ -403,6 +439,34 @@ func (h *UIHandler) handleChangePassword() {
 	h.printSuccess("password_changed_successfully")
 }
 
+// handleChangeLanguage allows user to change the application language
+func (h *UIHandler) handleChangeLanguage() {
+	choice, err := input(h.languagePack.Get("choose_language"))
+	if err != nil {
+		h.printError("failed_to_read_choice")
+		return
+	}
+	choice = strings.TrimSpace(choice)
+
+	switch choice {
+	case "1":
+		SetCurrentLanguage("en")
+		h.updateLanguagePack("en")
+		h.printSuccess("language_changed_successfully")
+	case "2":
+		SetCurrentLanguage("zh")
+		h.updateLanguagePack("zh")
+		h.printSuccess("language_changed_successfully")
+	default:
+		h.printError("invalid_choice")
+	}
+}
+
+// updateLanguagePack updates the language pack with the new language
+func (h *UIHandler) updateLanguagePack(lang string) {
+	h.languagePack = NewLanguagePackWrapper("client/main.json", lang)
+}
+
 // readPassword securely reads a password from terminal
 func (h *UIHandler) readPassword() (string, error) {
 	fmt.Print(h.languagePack.Get("password_prompt"))
@@ -431,7 +495,22 @@ func (h *UIHandler) getPasswordWithConfirmation() (string, error) {
 		}
 
 		if len(password) < 8 {
-			h.printWarning("password_too_short")
+			// Check if password contains only digits or only letters
+			isOnlyDigits := true
+			isOnlyLetters := true
+
+			for _, char := range password {
+				if !unicode.IsDigit(char) {
+					isOnlyDigits = false
+				}
+				if !unicode.IsLetter(char) {
+					isOnlyLetters = false
+				}
+			}
+
+			if isOnlyDigits || isOnlyLetters {
+				h.printWarning("password_too_short")
+			}
 		}
 
 		fmt.Print(h.languagePack.Get("confirm_password"))

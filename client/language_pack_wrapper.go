@@ -18,5 +18,8 @@ func NewLanguagePackWrapper(filePath, language string) *LanguagePackWrapper {
 
 // Get retrieves a localized string by key
 func (w *LanguagePackWrapper) Get(key string) string {
+	if w.lp == nil {
+		return key // Return the key itself if language pack is not initialized
+	}
 	return w.lp.G(key)
 }

@@ -123,11 +123,11 @@ func TestLanguagePackWrapper_Get(t *testing.T) {
 func TestLanguagePackWrapper_Integration(t *testing.T) {
 	// Integration test with actual language pack files
 	// This test will use the real lang_pack files if they exist
-	
+
 	wrapper := NewLanguagePackWrapper("client/main.json", "zh")
-	
+
 	assert.NotNil(t, wrapper)
-	
+
 	// Try to get a key - if the file doesn't exist, it will return empty string
 	result := wrapper.Get("test_nonexistent_key")
 	// Just verify it doesn't panic

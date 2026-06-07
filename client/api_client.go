@@ -34,6 +34,7 @@ type UserInfoResponse struct {
 // UserData represents user profile data
 type UserData struct {
 	Username string `json:"username"`
+	Email    string `json:"email"`
 	Nickname string `json:"nickname"`
 	Bio      string `json:"bio"`
 }
@@ -62,7 +63,9 @@ func NewRestAPIClient(client *HTTPClient, baseURL string, languagePack *Language
 
 // GetVerifyToken retrieves a verification token from the server
 func (c *RestAPIClient) GetVerifyToken() (string, error) {
-	resp, err := c.client.R().Get(fmt.Sprintf("%s/api/auth/token", c.baseURL))
+	resp, err := c.client.R().
+		SetQueryParam("language", getCurrentLanguage()).
+		Get(fmt.Sprintf("%s/api/auth/token", c.baseURL))
 	if err != nil {
 		return "", fmt.Errorf(c.languagePack.Get("verify_token_request_failed"), err)
 	}
@@ -96,6 +99,7 @@ func (c *RestAPIClient) Login(username, password, verifyToken string) (*AuthResp
 			"username":     username,
 			"password":     password,
 			"verify_token": verifyToken,
+			"language":     getCurrentLanguage(),
 		}).
 		Post(fmt.Sprintf("%s/api/auth/login", c.baseURL))
 
@@ -141,6 +145,7 @@ func (c *RestAPIClient) Register(username, password, verifyToken string) (*AuthR
 			"username":     username,
 			"password":     password,
 			"verify_token": verifyToken,
+			"language":     getCurrentLanguage(),
 		}).
 		Post(fmt.Sprintf("%s/api/auth/register", c.baseURL))
 
@@ -189,6 +194,7 @@ func (c *RestAPIClient) DeleteUser(userID, password, verifyToken string) error {
 		SetFormData(map[string]string{
 			"user_password": password,
 			"verify_token":  verifyToken,
+			"language":      getCurrentLanguage(),
 		}).
 		Post(fmt.Sprintf("%s/api/users/%s/delete", c.baseURL, userID))
 
@@ -227,6 +233,7 @@ func (c *RestAPIClient) GetUserProfile(userID, verifyToken string) (*UserInfoRes
 	resp, err := c.client.R().
 		SetQueryParams(map[string]string{
 			"verify_token": verifyToken,
+			"language":     getCurrentLanguage(),
 		}).
 		Get(fmt.Sprintf("%s/api/users/%s/profile", c.baseURL, userID))
 
@@ -272,6 +279,7 @@ func (c *RestAPIClient) UpdateUserProfile(userID, key, value, verifyToken string
 			"verify_token":    verifyToken,
 			"user_info_key":   key,
 			"user_info_value": value,
+			"language":        getCurrentLanguage(),
 		}).
 		Patch(fmt.Sprintf("%s/api/users/%s/profile", c.baseURL, userID))
 
@@ -312,6 +320,7 @@ func (c *RestAPIClient) ChangePassword(userID, oldPassword, newPassword, verifyT
 			"verify_token": verifyToken,
 			"old_password": oldPassword,
 			"new_password": newPassword,
+			"language":     getCurrentLanguage(),
 		}).
 		Put(fmt.Sprintf("%s/api/users/%s/password", c.baseURL, userID))
 
@@ -347,7 +356,9 @@ func (c *RestAPIClient) ChangePassword(userID, oldPassword, newPassword, verifyT
 
 // CheckServerHealth verifies server availability
 func (c *RestAPIClient) CheckServerHealth() (bool, error) {
-	resp, err := c.client.R().Get(c.baseURL)
+	resp, err := c.client.R().
+		SetQueryParam("language", getCurrentLanguage()).
+		Get(c.baseURL)
 	if err != nil {
 		return false, fmt.Errorf(c.languagePack.Get("connection_error"), err)
 	}
@@ -361,4 +372,17 @@ func (c *RestAPIClient) CheckServerHealth() (bool, error) {
 	}
 
 	return true, nil
+}
+
+// currentLanguage holds the current language preference
+var currentLanguage = DEFAULT_LANGUAGE
+
+// getCurrentLanguage returns the current language setting
+func getCurrentLanguage() string {
+	return currentLanguage
+}
+
+// SetCurrentLanguage sets the current language preference
+func SetCurrentLanguage(lang string) {
+	currentLanguage = lang
 }

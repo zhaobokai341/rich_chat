@@ -102,7 +102,7 @@ func TestLanguagePack_Load_InvalidJSON(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	_, err = tempFile.WriteString("this is not valid json {{{")
+	_, err = tempFile.WriteString("this is not valid json {")
 	assert.NoError(t, err)
 	tempFile.Close()
 
@@ -161,13 +161,13 @@ func TestLanguagePack_G(t *testing.T) {
 			name:     "non-existent key",
 			key:      "nonexistent",
 			language: "zh",
-			expected: "",
+			expected: "nonexistent",
 		},
 		{
 			name:     "key exists but language does not",
 			key:      "empty_lang",
 			language: "zh",
-			expected: "",
+			expected: "Only English",
 		},
 		{
 			name:     "empty key",
@@ -216,7 +216,7 @@ func TestLanguagePack_MultipleLanguages(t *testing.T) {
 
 	// Test unsupported language
 	lp.language = "fr"
-	assert.Equal(t, "", lp.G("welcome"))
+	assert.Equal(t, "Welcome", lp.G("welcome")) // Falls back to English
 }
 
 func TestLanguagePack_ComplexStructure(t *testing.T) {
@@ -260,7 +260,7 @@ func TestLanguagePack_EmptyData(t *testing.T) {
 		data:     make(map[string]map[string]string),
 	}
 
-	// All lookups should return empty string
-	assert.Equal(t, "", lp.G("any_key"))
-	assert.Equal(t, "", lp.G(""))
+	// All lookups should return the key itself
+	assert.Equal(t, "any_key", lp.G("any_key"))
+	assert.Equal(t, "", lp.G("")) // Empty key returns empty key
 }

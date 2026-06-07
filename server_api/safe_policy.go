@@ -93,6 +93,7 @@ func safe_check() gin.HandlerFunc {
 		usr_token := c.GetHeader("user_token")
 		if usr_token == "" {
 			c.Next()
+			return
 		}
 		usr_id := c.GetHeader("user_id")
 		if usr_id == "" {
@@ -112,6 +113,9 @@ func safe_check() gin.HandlerFunc {
 			})
 
 		if err != nil {
+			// Get language pack for this request
+			lp := getLanguagePackFromContext(c)
+
 			log.WithFields(log.Fields{
 				"error": err.Error(),
 			}).Warning("Token parse error")
@@ -122,6 +126,9 @@ func safe_check() gin.HandlerFunc {
 
 		user_id, err := strconv.Atoi(usr_id)
 		if err != nil {
+			// Get language pack for this request
+			lp := getLanguagePackFromContext(c)
+
 			log.WithFields(log.Fields{
 				"error": err.Error(),
 			}).Warning("Invalid user_id format")
@@ -131,6 +138,9 @@ func safe_check() gin.HandlerFunc {
 		}
 
 		if !token.Valid || claims.UserID != user_id {
+			// Get language pack for this request
+			lp := getLanguagePackFromContext(c)
+
 			log.Warning("Token is invalid or user_id mismatch")
 			c.JSON(http.StatusUnauthorized, gin.H{"error": lp.G("invalid_token")})
 			c.Abort()
@@ -141,6 +151,9 @@ func safe_check() gin.HandlerFunc {
 		if services != nil {
 			exists, _ := services.UserService.CheckUserExists(user_id)
 			if !exists {
+				// Get language pack for this request
+				lp := getLanguagePackFromContext(c)
+
 				log.WithFields(log.Fields{
 					"user_id": user_id,
 				}).Warning("User does not exist")

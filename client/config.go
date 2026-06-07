@@ -3,12 +3,12 @@ package main
 import "fmt"
 
 const ( // basic config
-	LANGUAGE     = "zh"        // Language (zh/en)
-	URL_SCHEMA   = "http"      // URL protocol (http/https)
-	URL_DOMAIN   = "localhost" // URL domain
-	URL_PORT     = 2316        // URL port
-	URL_USERNAME = "admin"     // HTTP Basic Auth username
-	URL_PASSWORD = "password"  // HTTP Basic Auth password
+	DEFAULT_LANGUAGE = "en"        // Default Language (zh/en)
+	URL_SCHEMA       = "http"      // URL protocol (http/https)
+	URL_DOMAIN       = "localhost" // URL domain
+	URL_PORT         = 2316        // URL port
+	URL_USERNAME     = "admin"     // HTTP Basic Auth username
+	URL_PASSWORD     = "password"  // HTTP Basic Auth password
 )
 
 // Constructed URL root

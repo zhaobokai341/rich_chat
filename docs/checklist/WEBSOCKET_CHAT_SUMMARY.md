@@ -1,7 +1,7 @@
-# Rich Chat - WebSocket Chat Implementation Summary
-# Rich Chat - WebSocket聊天实现总结
+# Rich Chat - End-to-End Encrypted WebSocket Chat Implementation Summary
+# Rich Chat - 端到端加密WebSocket聊天实现总结
 
-**Date / 日期:** 2026-06-02  
+**Date / 日期:** 2026-06-04  
 **Author / 作者:** AI Assistant (Qoder)  
 **Status / 状态:** Analysis Complete, Implementation Ready / 分析完成，准备实施
 
@@ -9,9 +9,9 @@
 
 ## Executive Summary / 执行摘要
 
-This document summarizes the analysis of the Rich Chat project and provides a high-level overview of how to implement WebSocket-based real-time chat with encrypted message storage.
+This document summarizes the analysis of the Rich Chat project and provides a high-level overview of how to implement WebSocket-based real-time chat with end-to-end encrypted message storage.
 
-本文档总结了Rich Chat项目的分析结果，并提供了如何实现基于WebSocket的实时聊天和加密消息存储的高级概述。
+本文档总结了Rich Chat项目的分析结果，并提供了如何实现基于WebSocket的实时聊天和端到端加密消息存储的高级概述。
 
 ---
 
@@ -58,7 +58,7 @@ This document summarizes the analysis of the Rich Chat project and provides a hi
 
 2. **Message Storage / 消息存储**
    - No chat message tables / 无聊天消息表
-   - No message encryption / 无消息加密
+   - No end-to-end encryption / 无端到端加密
    - No message history retrieval / 无消息历史检索
 
 3. **Chat UI / 聊天界面**
@@ -88,13 +88,13 @@ This document summarizes the analysis of the Rich Chat project and provides a hi
 
 ### Phase 2: Core Messaging (Weeks 3-4) / 第二阶段：核心消息(第3-4周)
 
-**Objective / 目标:** Enable encrypted message sending and receiving / 启用加密消息发送和接收
+**Objective / 目标:** Enable end-to-end encrypted message sending and receiving / 启用端到端加密消息发送和接收
 
 **Tasks / 任务:**
-1. Implement AES-256-GCM encryption service / 实现AES-256-GCM加密服务
+1. Implement E2EE service (RSA-2048/Ed25519 + AES-256-GCM) / 实现E2EE服务(RSA-2048/Ed25519 + AES-256-GCM)
 2. Create message repository for database operations / 创建消息仓库进行数据库操作
 3. Build chat service layer / 构建聊天服务层
-4. Integrate encryption with message flow / 将加密集成到消息流中
+4. Integrate E2EE with message flow / 将端到端加密集成到消息流中
 
 **Deliverables / 交付物:**
 - ✅ One-on-one chat functional / 一对一聊天功能正常
@@ -158,17 +158,18 @@ This document summarizes the analysis of the Rich Chat project and provides a hi
 
 ### 1. Encryption Strategy / 加密策略
 
-**Decision / 决策:** Use AES-256-GCM with transport-layer encryption (Phase 1) / 使用AES-256-GCM传输层加密(第一阶段)
+**Decision / 决策:** Use End-to-End Encryption (E2EE) with RSA-2048/Ed25519 + AES-256-GCM (Primary approach) / 使用端到端加密(E2EE)与RSA-2048/Ed25519 + AES-256-GCM(主要方法)
 
 **Rationale / 理由:**
-- Simpler implementation for faster time-to-market / 实现更简单，上市更快
-- Good security for most use cases / 大多数用例的安全性良好
-- Can upgrade to E2EE later if needed / 如果需要可以稍后升级到E2EE
+- Maximum privacy - server cannot access message content / 最大隐私-服务器无法访问消息内容
+- Protection against server compromise / 防止服务器被攻破
+- Meets modern security expectations for messaging apps / 满足现代消息应用的安全期望
 
 **Alternative Considered / 考虑的替代方案:**
-- End-to-End Encryption (E2EE) / 端到端加密(E2EE)
-  - More secure but complex / 更安全但复杂
-  - Defer to Phase 2 / 推迟到第二阶段
+- Transport-layer encryption only / 仅传输层加密
+  - Simpler to implement / 实现更简单
+  - Server could still access message content / 服务器仍可访问消息内容
+  - Rejected in favor of stronger privacy / 因隐私较弱而被拒绝
 
 ---
 

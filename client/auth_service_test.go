@@ -78,12 +78,13 @@ func TestAuthService_Login(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockAPI, mockConfig)
 			}
 
-			service := NewAuthService(mockAPI, mockConfig, mockExtractor)
+			service := NewAuthService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			err := service.Login(tt.username, tt.password)
 
 			if tt.expectedError {
@@ -157,12 +158,13 @@ func TestAuthService_Register(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			if tt.mockSetup != nil {
 				tt.mockSetup(mockAPI, mockConfig)
 			}
 
-			service := NewAuthService(mockAPI, mockConfig, mockExtractor)
+			service := NewAuthService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			err := service.Register(tt.username, tt.password)
 
 			if tt.expectedError {
@@ -186,12 +188,13 @@ func TestAuthService_Logout(t *testing.T) {
 	mockAPI := &MockAPIClient{}
 	mockConfig := NewMockConfigManager()
 	mockExtractor := &MockTokenExtractor{}
+	mockLangPack := &LanguagePackWrapper{lp: nil}
 
 	// Set initial credentials
 	mockConfig.SetToken("test-token")
 	mockConfig.SetUserID("1")
 
-	service := NewAuthService(mockAPI, mockConfig, mockExtractor)
+	service := NewAuthService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 	err := service.Logout()
 
 	if err != nil {
@@ -209,9 +212,9 @@ func TestAuthService_Logout(t *testing.T) {
 
 func TestAuthService_IsAuthenticated(t *testing.T) {
 	tests := []struct {
-		name             string
-		setupConfig      func(*MockConfigManager)
-		expectedAuth     bool
+		name         string
+		setupConfig  func(*MockConfigManager)
+		expectedAuth bool
 	}{
 		{
 			name: "authenticated with valid credentials",
@@ -249,10 +252,11 @@ func TestAuthService_IsAuthenticated(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			tt.setupConfig(mockConfig)
 
-			service := NewAuthService(mockAPI, mockConfig, mockExtractor)
+			service := NewAuthService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			result := service.IsAuthenticated()
 
 			if result != tt.expectedAuth {
@@ -301,10 +305,11 @@ func TestAuthService_GetCredentials(t *testing.T) {
 			mockAPI := &MockAPIClient{}
 			mockConfig := NewMockConfigManager()
 			mockExtractor := &MockTokenExtractor{}
+			mockLangPack := &LanguagePackWrapper{lp: nil}
 
 			tt.setupConfig(mockConfig)
 
-			service := NewAuthService(mockAPI, mockConfig, mockExtractor)
+			service := NewAuthService(mockAPI, mockConfig, mockExtractor, mockLangPack)
 			token, userID, err := service.GetCredentials()
 
 			if tt.expectedError {

@@ -10,12 +10,16 @@ import (
 
 // Application errors
 var (
-	ErrUserNotFound          = errors.New("user not found")
-	ErrInvalidPassword       = errors.New("invalid password")
-	ErrAccountLocked         = errors.New("account is locked")
-	ErrInvalidToken          = errors.New("invalid or expired token")
-	ErrUsernameAlreadyExists = errors.New("username already exists")
-	ErrInvalidInput          = errors.New("invalid input")
+	ErrUserNotFound             = errors.New("user not found")
+	ErrInvalidPassword          = errors.New("invalid password")
+	ErrAccountLocked            = errors.New("account is locked")
+	ErrInvalidToken             = errors.New("invalid or expired token")
+	ErrUsernameAlreadyExists    = errors.New("username already exists")
+	ErrInvalidInput             = errors.New("invalid input")
+	ErrInvalidEmailFormat       = errors.New("invalid email format")
+	ErrEmailExceedsMaxLength    = errors.New("email exceeds maximum length")
+	ErrBioExceedsMaxLength      = errors.New("bio exceeds maximum length")
+	ErrPasswordExceedsMaxLength = errors.New("password exceeds maximum length")
 )
 
 // LoginRequest represents login credentials

@@ -17,6 +17,9 @@ func (api *WebServerApi) Index(c *gin.Context) {
 
 // Get verification token for sensitive operations - Refactored to use TokenService
 func (api *WebServerApi) GetVerifyToken(c *gin.Context) {
+	// Get language pack for this request
+	lp := getLanguagePackFromContext(c)
+
 	// Generate verification token using service
 	token, err := api.tokenService.GenerateVerificationToken()
 	if err != nil {
@@ -108,6 +111,9 @@ func (api *WebServerApi) Register(c *gin.Context) {
 
 // Delete user account - Refactored to use UserService
 func (api *WebServerApi) DeleteUser(c *gin.Context) {
+	// Get language pack for this request
+	lp := getLanguagePackFromContext(c)
+
 	// Parse user_id from URL parameter
 	userID, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil {
@@ -143,6 +149,9 @@ func (api *WebServerApi) DeleteUser(c *gin.Context) {
 
 // Get user info - Refactored to use UserService
 func (api *WebServerApi) GetUserProfile(c *gin.Context) {
+	// Get language pack for this request
+	lp := getLanguagePackFromContext(c)
+
 	// Parse user_id from URL parameter
 	userID, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil {
@@ -175,6 +184,9 @@ func (api *WebServerApi) GetUserProfile(c *gin.Context) {
 
 // Change user info - Refactored to use UserService
 func (api *WebServerApi) ChangeUserProfile(c *gin.Context) {
+	// Get language pack for this request
+	lp := getLanguagePackFromContext(c)
+
 	// Parse user_id from URL parameter
 	userID, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil {
@@ -218,6 +230,9 @@ func (api *WebServerApi) ChangeUserProfile(c *gin.Context) {
 
 // Change user password
 func (api *WebServerApi) ChangeUserPassword(c *gin.Context) {
+	// Get language pack for this request
+	lp := getLanguagePackFromContext(c)
+
 	// Parse user_id from URL parameter
 	userID, err := strconv.Atoi(c.Param("user_id"))
 	if err != nil {
