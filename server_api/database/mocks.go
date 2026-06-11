@@ -88,6 +88,14 @@ func (m *MockUserRepository) ClearExpiredLock(identifier string) error {
 	return args.Error(0)
 }
 
+func (m *MockUserRepository) GetUserBasicInfo(userID int) (*UserBasicInfo, error) {
+	args := m.Called(userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*UserBasicInfo), args.Error(1)
+}
+
 // MockRateLimitRepository is a mock implementation of RateLimitRepository for testing
 type MockRateLimitRepository struct {
 	mock.Mock

@@ -30,13 +30,19 @@ func (s *UserService) DeleteAccount(password string) error {
 		return fmt.Errorf("%s", msg)
 	}
 
+	token, tokenExists := s.configMgr.GetToken()
+	if !tokenExists {
+		msg := s.languagePack.Get("user_token_not_found")
+		return fmt.Errorf("%s", msg)
+	}
+
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
 		msg := s.languagePack.Get("getting_verify_token_failed")
 		return fmt.Errorf("%s: %w", msg, err)
 	}
 
-	if err := s.apiClient.DeleteUser(userID, password, verifyToken); err != nil {
+	if err := s.apiClient.DeleteUser(userID, token, password, verifyToken); err != nil {
 		return err
 	}
 
@@ -58,13 +64,19 @@ func (s *UserService) GetProfile() (*UserData, error) {
 		return nil, fmt.Errorf("%s", msg)
 	}
 
+	token, tokenExists := s.configMgr.GetToken()
+	if !tokenExists {
+		msg := s.languagePack.Get("user_token_not_found")
+		return nil, fmt.Errorf("%s", msg)
+	}
+
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
 		msg := s.languagePack.Get("getting_verify_token_failed")
 		return nil, fmt.Errorf("%s: %w", msg, err)
 	}
 
-	resp, err := s.apiClient.GetUserProfile(userID, verifyToken)
+	resp, err := s.apiClient.GetUserProfile(userID, token, verifyToken)
 	if err != nil {
 		return nil, err
 	}
@@ -85,13 +97,19 @@ func (s *UserService) UpdateProfile(key, value string) error {
 		return fmt.Errorf("%s", msg)
 	}
 
+	token, tokenExists := s.configMgr.GetToken()
+	if !tokenExists {
+		msg := s.languagePack.Get("user_token_not_found")
+		return fmt.Errorf("%s", msg)
+	}
+
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
 		msg := s.languagePack.Get("getting_verify_token_failed")
 		return fmt.Errorf("%s: %w", msg, err)
 	}
 
-	if err := s.apiClient.UpdateUserProfile(userID, key, value, verifyToken); err != nil {
+	if err := s.apiClient.UpdateUserProfile(userID, token, key, value, verifyToken); err != nil {
 		return err
 	}
 
@@ -106,13 +124,19 @@ func (s *UserService) ChangePassword(oldPassword, newPassword string) error {
 		return fmt.Errorf("%s", msg)
 	}
 
+	token, tokenExists := s.configMgr.GetToken()
+	if !tokenExists {
+		msg := s.languagePack.Get("user_token_not_found")
+		return fmt.Errorf("%s", msg)
+	}
+
 	verifyToken, err := s.apiClient.GetVerifyToken()
 	if err != nil {
 		msg := s.languagePack.Get("getting_verify_token_failed")
 		return fmt.Errorf("%s: %w", msg, err)
 	}
 
-	if err := s.apiClient.ChangePassword(userID, oldPassword, newPassword, verifyToken); err != nil {
+	if err := s.apiClient.ChangePassword(userID, token, oldPassword, newPassword, verifyToken); err != nil {
 		return err
 	}
 

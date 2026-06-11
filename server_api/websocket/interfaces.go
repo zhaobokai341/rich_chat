@@ -6,6 +6,63 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// HubInterface defines the interface for the WebSocket hub
+type HubInterface interface {
+	// Run starts the hub event loop
+	Run()
+
+	// Register adds a connection to the hub
+	Register(conn *Connection)
+
+	// Unregister removes a connection from the hub
+	Unregister(conn *Connection)
+
+	// JoinSession adds a connection to a session
+	JoinSession(conn *Connection, sessionID int)
+
+	// LeaveSession removes a connection from a session
+	LeaveSession(conn *Connection, sessionID int)
+
+	// Broadcast sends a message to all connections in a session (excluding sender)
+	Broadcast(msg ServerMessage, sessionID int)
+
+	// GetConnectionsForSession returns all connections in a specific session
+	GetConnectionsForSession(sessionID int) []*Connection
+
+	// GetConnectionForUser returns the connection for a specific user
+	GetConnectionForUser(userID int) *Connection
+
+	// IsUserOnline checks if a user is currently online
+	IsUserOnline(userID int) bool
+
+	// BroadcastToSession sends a message to all connections in a session
+	BroadcastToSession(sessionID int, msg ServerMessage)
+
+	// SendToUser sends a message to a specific user
+	SendToUser(userID int, msg ServerMessage) error
+
+	// Close closes the hub and all connections
+	Close()
+}
+
+// ConnectionManagerInterface defines the interface for managing connections
+type ConnectionManagerInterface interface {
+	// Register adds a connection to the hub
+	Register(conn *Connection)
+
+	// Unregister removes a connection from the hub
+	Unregister(conn *Connection)
+
+	// JoinSession adds a connection to a session
+	JoinSession(conn *Connection, sessionID int)
+
+	// LeaveSession removes a connection from a session
+	LeaveSession(conn *Connection, sessionID int)
+
+	// Broadcast sends a message to all connections in a session (excluding sender)
+	Broadcast(msg ServerMessage, sessionID int)
+}
+
 // WebSocketService defines the interface for WebSocket operations
 type WebSocketService interface {
 	// HandleWebSocket handles the WebSocket connection upgrade with authentication
@@ -34,6 +91,9 @@ type MessageHandler interface {
 
 	// ValidateMessage checks if a message is valid
 	ValidateMessage(msg ClientMessage) error
+
+	// IsE2EE checks if the message type is E2EE
+	IsE2EE(msgType string) bool
 }
 
 // ConnectionManager defines the interface for managing WebSocket connections

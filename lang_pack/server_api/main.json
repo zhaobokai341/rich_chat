@@ -23,6 +23,10 @@
         "zh": "用户名长度必须小于",
         "en": "Length of username must less than "
     },
+    "nickname_invalid_format": {
+        "zh": "无效的昵称",
+        "en": "Invalid nickname"
+    },
     "registration_successful": {
         "zh": "注册成功",
         "en": "Registration successful"

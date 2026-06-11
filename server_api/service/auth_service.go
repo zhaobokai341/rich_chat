@@ -48,11 +48,6 @@ func (s *AuthServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 		return nil, ErrInvalidInput
 	}
 
-	// Validate verification token
-	if err := s.tokenService.ValidateAndConsumeToken(req.VerifyToken); err != nil {
-		return nil, err
-	}
-
 	// Check if account is locked
 	if s.rateLimitRepo != nil {
 		locked, _ := s.rateLimitRepo.CheckAccountLocked(req.Username)
@@ -129,11 +124,6 @@ func (s *AuthServiceImpl) Register(ctx context.Context, req *RegisterRequest) (*
 	// Validate input
 	if req.Username == "" || req.Password == "" {
 		return nil, ErrInvalidInput
-	}
-
-	// Validate verification token
-	if err := s.tokenService.ValidateAndConsumeToken(req.VerifyToken); err != nil {
-		return nil, err
 	}
 
 	// Validate username length

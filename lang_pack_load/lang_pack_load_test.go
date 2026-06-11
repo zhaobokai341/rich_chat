@@ -20,13 +20,13 @@ func TestNewLanguagePack(t *testing.T) {
 			name:         "client main.json with zh language",
 			file:         "client/main.json",
 			language:     "zh",
-			expectedPath: "../lang_pack/client/main.json",
+			expectedPath: "client/main.json",
 		},
 		{
 			name:         "server_api main.json with en language",
 			file:         "server_api/main.json",
 			language:     "en",
-			expectedPath: "../lang_pack/server_api/main.json",
+			expectedPath: "server_api/main.json",
 		},
 	}
 

@@ -18,6 +18,7 @@ type UserServiceImpl struct {
 	maxPasswordLength int
 	maxBioLength      int
 	maxEmailLength    int
+	maxNicknameLength int
 }
 
 // NewUserService creates a new user service
@@ -27,6 +28,7 @@ func NewUserService(
 	maxPasswordLength int,
 	maxBioLength int,
 	maxEmailLength int,
+	maxNicknameLength int,
 ) *UserServiceImpl {
 	return &UserServiceImpl{
 		userRepo:          userRepo,
@@ -34,11 +36,15 @@ func NewUserService(
 		maxPasswordLength: maxPasswordLength,
 		maxBioLength:      maxBioLength,
 		maxEmailLength:    maxEmailLength,
+		maxNicknameLength: maxNicknameLength,
 	}
 }
 
 // GetUserProfile retrieves user profile information
-func (s *UserServiceImpl) GetUserProfile(ctx context.Context, userID int) (*database.UserInfo, error) {
+func (s *UserServiceImpl) GetUserProfile(
+	ctx context.Context,
+	userID int,
+) (*database.UserInfo, error) {
 	// Check if user exists
 	exists, err := s.userRepo.ExistsByID(userID)
 	if err != nil {
@@ -67,7 +73,10 @@ func (s *UserServiceImpl) GetUserProfile(ctx context.Context, userID int) (*data
 }
 
 // UpdateUserProfile updates user profile information
-func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, req *UserProfileUpdateRequest) error {
+func (s *UserServiceImpl) UpdateUserProfile(
+	ctx context.Context,
+	req *UserProfileUpdateRequest,
+) error {
 	// Validate input
 	if req.Key == "" {
 		return ErrInvalidInput
@@ -103,7 +112,15 @@ func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, req *UserProfil
 			return ErrBioExceedsMaxLength
 		}
 	case "nickname":
-		// No specific validation needed for nickname beyond length limits in the repo
+		if err := utils.ValidateNickname(req.Value, s.maxNicknameLength); err != nil {
+			log.WithFields(log.Fields{
+				"user_id": req.UserID,
+				"key":     req.Key,
+				"value":   req.Value,
+				"error":   err.Error(),
+			}).Warning("Invalid nickname format")
+			return ErrInvalidNicknameFormat
+		}
 	default:
 		// Allow other fields that might be added in the future
 	}
@@ -331,4 +348,17 @@ func (s *UserServiceImpl) CheckAccountLocked(identifier string) bool {
 // CheckUserExists checks if a user exists by ID
 func (s *UserServiceImpl) CheckUserExists(userID int) (bool, error) {
 	return s.userRepo.ExistsByID(userID)
+}
+
+// GetUserBasicInfo retrieves basic user info by ID
+func (s *UserServiceImpl) GetUserBasicInfo(ctx context.Context, userID int) (*database.UserBasicInfo, error) {
+	basicInfo, err := s.userRepo.GetUserBasicInfo(userID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id": userID,
+			"error":   err.Error(),
+		}).Error("Failed to get user basic info")
+		return nil, fmt.Errorf("failed to get user basic info: %w", err)
+	}
+	return basicInfo, nil
 }

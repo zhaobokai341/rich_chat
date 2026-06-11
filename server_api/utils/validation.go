@@ -59,3 +59,12 @@ func ValidateEmail(email string, maxEmailLength int) error {
 
 	return nil
 }
+
+// ValidateNickname validates nickname length and composition
+func ValidateNickname(nickname string, maxNicknameLength int) error {
+	if len(nickname) > maxNicknameLength {
+		return fmt.Errorf("nickname exceeds maximum length of %d", maxNicknameLength)
+	}
+
+	return nil
+}

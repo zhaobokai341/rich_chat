@@ -65,3 +65,31 @@ type GroupChat struct {
 	MaxMembers   int     `db:"max_members"`
 	PrivacyLevel string  `db:"privacy_level"` // 'public', 'private', 'invite_only'
 }
+
+// UserKey represents a user's encryption key pair for E2EE
+type UserKey struct {
+	ID                  int        `db:"id"`
+	UserID              int        `db:"user_id"`
+	PublicKey           string     `db:"public_key"`            // RSA/Ed25519 public key in PEM format
+	EncryptedPrivateKey []byte     `db:"encrypted_private_key"` // Encrypted private key with user's password-derived key
+	KeyAlgorithm        string     `db:"key_algorithm"`         // Algorithm used (RSA-2048, Ed25519)
+	CreatedAt           *time.Time `db:"created_at"`
+	UpdatedAt           *time.Time `db:"updated_at"`
+	IsActive            bool       `db:"is_active"`
+}
+
+// OfflineEncryptedMessage represents an encrypted message for offline delivery
+type OfflineEncryptedMessage struct {
+	ID                  int        `db:"id"`
+	MessageID           string     `db:"message_id"` // Unique message ID for deduplication
+	RecipientID         int        `db:"recipient_id"`
+	SenderID            int        `db:"sender_id"`
+	SessionID           int        `db:"session_id"`
+	EncryptedSessionKey []byte     `db:"encrypted_session_key"` // Session key encrypted with recipient's public key
+	EncryptedContent    []byte     `db:"encrypted_content"`     // Message content encrypted with session key
+	Iv                  []byte     `db:"iv"`                    // Initialization vector for AES-GCM
+	AuthTag             []byte     `db:"auth_tag"`              // Authentication tag for AES-GCM
+	CreatedAt           *time.Time `db:"created_at"`
+	DeliveredAt         *time.Time `db:"delivered_at"`
+	IsDelivered         bool       `db:"is_delivered"`
+}

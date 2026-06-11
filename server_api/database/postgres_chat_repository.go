@@ -275,3 +275,146 @@ func (r *PostgresChatRepository) GetGroupChat(ctx context.Context, sessionID int
 	}
 	return &groupChat, nil
 }
+
+// E2EE Key Management
+
+// StoreUserKey stores a user's encryption key pair for E2EE
+func (r *PostgresChatRepository) StoreUserKey(ctx context.Context, userKey *UserKey) error {
+	query := `
+		INSERT INTO user_keys (user_id, public_key, encrypted_private_key, key_algorithm, is_active)
+		VALUES ($1, $2, $3, $4, $5)`
+	_, err := r.db.ExecContext(ctx, query,
+		userKey.UserID,
+		userKey.PublicKey,
+		userKey.EncryptedPrivateKey,
+		userKey.KeyAlgorithm,
+		userKey.IsActive)
+	if err != nil {
+		return fmt.Errorf("failed to store user key: %w", err)
+	}
+	return nil
+}
+
+// GetUserKey retrieves a user's encryption key pair
+func (r *PostgresChatRepository) GetUserKey(ctx context.Context, userID int) (*UserKey, error) {
+	var userKey UserKey
+	query := `
+		SELECT id, user_id, public_key, encrypted_private_key, key_algorithm, created_at, updated_at, is_active
+		FROM user_keys
+		WHERE user_id = $1 AND is_active = true`
+	err := r.db.GetContext(ctx, &userKey, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user key: %w", err)
+	}
+	return &userKey, nil
+}
+
+// GetUserPublicKey retrieves only the public key for a user
+func (r *PostgresChatRepository) GetUserPublicKey(ctx context.Context, userID int) (string, error) {
+	var publicKey string
+	query := `SELECT public_key FROM user_keys WHERE user_id = $1 AND is_active = true`
+	err := r.db.GetContext(ctx, &publicKey, query, userID)
+	if err != nil {
+		return "", fmt.Errorf("failed to get user public key: %w", err)
+	}
+	return publicKey, nil
+}
+
+// UpdateUserKey updates a user's encryption key pair
+func (r *PostgresChatRepository) UpdateUserKey(ctx context.Context, userKey *UserKey) error {
+	query := `
+		UPDATE user_keys
+		SET public_key = $1, encrypted_private_key = $2, key_algorithm = $3, updated_at = NOW()
+		WHERE user_id = $4 AND is_active = true`
+	_, err := r.db.ExecContext(ctx, query,
+		userKey.PublicKey,
+		userKey.EncryptedPrivateKey,
+		userKey.KeyAlgorithm,
+		userKey.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to update user key: %w", err)
+	}
+	return nil
+}
+
+// DeactivateUserKey deactivates a user's encryption key pair
+func (r *PostgresChatRepository) DeactivateUserKey(ctx context.Context, userID int) error {
+	query := `UPDATE user_keys SET is_active = false, updated_at = NOW() WHERE user_id = $1`
+	_, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to deactivate user key: %w", err)
+	}
+	return nil
+}
+
+// E2EE Offline Message Operations
+
+// StoreOfflineEncryptedMessage stores an encrypted message for offline delivery
+func (r *PostgresChatRepository) StoreOfflineEncryptedMessage(ctx context.Context, offlineMsg *OfflineEncryptedMessage) (int, error) {
+	var messageID int
+	query := `
+		INSERT INTO offline_encrypted_messages (recipient_id, sender_id, session_id, encrypted_session_key, encrypted_content, iv, auth_tag)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		RETURNING id`
+	err := r.db.QueryRowContext(ctx, query,
+		offlineMsg.RecipientID,
+		offlineMsg.SenderID,
+		offlineMsg.SessionID,
+		offlineMsg.EncryptedSessionKey,
+		offlineMsg.EncryptedContent,
+		offlineMsg.Iv,
+		offlineMsg.AuthTag).Scan(&messageID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to store offline encrypted message: %w", err)
+	}
+	return messageID, nil
+}
+
+// GetUndeliveredOfflineMessages retrieves all undelivered encrypted messages for a user
+func (r *PostgresChatRepository) GetUndeliveredOfflineMessages(ctx context.Context, recipientID int) ([]*OfflineEncryptedMessage, error) {
+	var messages []*OfflineEncryptedMessage
+	query := `
+		SELECT id, recipient_id, sender_id, session_id, encrypted_session_key, encrypted_content, iv, auth_tag, created_at, delivered_at, is_delivered
+		FROM offline_encrypted_messages
+		WHERE recipient_id = $1 AND is_delivered = false
+		ORDER BY created_at ASC`
+	err := r.db.SelectContext(ctx, &messages, query, recipientID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get undelivered offline messages: %w", err)
+	}
+	return messages, nil
+}
+
+// MarkOfflineMessageDelivered marks an offline message as delivered
+func (r *PostgresChatRepository) MarkOfflineMessageDelivered(ctx context.Context, messageID int) error {
+	query := `
+		UPDATE offline_encrypted_messages
+		SET is_delivered = true, delivered_at = NOW()
+		WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, messageID)
+	if err != nil {
+		return fmt.Errorf("failed to mark offline message delivered: %w", err)
+	}
+	return nil
+}
+
+// DeleteOfflineMessage deletes an offline message
+func (r *PostgresChatRepository) DeleteOfflineMessage(ctx context.Context, messageID int) error {
+	query := `DELETE FROM offline_encrypted_messages WHERE id = $1`
+	_, err := r.db.ExecContext(ctx, query, messageID)
+	if err != nil {
+		return fmt.Errorf("failed to delete offline message: %w", err)
+	}
+	return nil
+}
+
+// GetUndeliveredMessageCount returns the count of undelivered messages for a user
+func (r *PostgresChatRepository) GetUndeliveredMessageCount(ctx context.Context, recipientID int) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM offline_encrypted_messages WHERE recipient_id = $1 AND is_delivered = false`
+	err := r.db.GetContext(ctx, &count, query, recipientID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get undelivered message count: %w", err)
+	}
+	return count, nil
+}

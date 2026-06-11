@@ -3,7 +3,6 @@ package lang_pack_load
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
 )
 
 type LanguagePack struct {
@@ -12,11 +11,9 @@ type LanguagePack struct {
 	data     map[string]map[string]string
 }
 
-func NewLanguagePack(file string, language string) *LanguagePack {
-	fullPath := filepath.Join("../lang_pack/", file)
-
+func NewLanguagePack(file_path string, language string) *LanguagePack {
 	return &LanguagePack{
-		file:     fullPath,
+		file:     file_path,
 		language: language,
 		data:     make(map[string]map[string]string),
 	}

@@ -286,3 +286,32 @@ func (c *CachedUserRepository) GetLockStatus(identifier string) (*time.Time, err
 func (c *CachedUserRepository) ClearExpiredLock(identifier string) error {
 	return c.repo.ClearExpiredLock(identifier)
 }
+
+// GetUserBasicInfo retrieves basic user info by ID with caching
+func (c *CachedUserRepository) GetUserBasicInfo(userID int) (*UserBasicInfo, error) {
+	cacheKey := fmt.Sprintf("user:basic:%d", userID)
+	if cached, found := c.cache.Get(cacheKey); found {
+		if cached == "" {
+			return nil, fmt.Errorf("user not found")
+		}
+		var basicInfo UserBasicInfo
+		err := json.Unmarshal([]byte(cached), &basicInfo)
+		if err != nil {
+			return nil, err
+		}
+		return &basicInfo, nil
+	}
+
+	basicInfo, err := c.repo.GetUserBasicInfo(userID)
+	if err != nil {
+		c.cache.SetNull(cacheKey)
+		return nil, err
+	}
+
+	basicStr, err := json.Marshal(basicInfo)
+	if err != nil {
+		return nil, err
+	}
+	c.cache.Set(cacheKey, string(basicStr))
+	return basicInfo, nil
+}

@@ -76,7 +76,6 @@ func TestMessageStructures(t *testing.T) {
 			Type:      "chat",
 			SessionID: 1,
 			Content:   "Hello World",
-			Timestamp: time.Now(),
 		}
 
 		assert.Equal(t, "chat", msg.Type)
@@ -90,7 +89,6 @@ func TestMessageStructures(t *testing.T) {
 			SessionID: 1,
 			SenderID:  123,
 			Content:   "Hello World",
-			Timestamp: time.Now(),
 		}
 
 		assert.Equal(t, "chat", msg.Type)
@@ -253,10 +251,11 @@ func TestHub_Close(t *testing.T) {
 func TestHandler(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	assert.NotNil(t, handler)
 	assert.Equal(t, hub, handler.hub)
@@ -266,10 +265,11 @@ func TestHandler(t *testing.T) {
 func TestHandler_BroadcastToSession(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	msg := ServerMessage{
 		Type:      "test",
@@ -285,10 +285,11 @@ func TestHandler_BroadcastToSession(t *testing.T) {
 func TestHandler_IsUserOnline(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	assert.False(t, handler.IsUserOnline(1))
 }
@@ -296,10 +297,11 @@ func TestHandler_IsUserOnline(t *testing.T) {
 func TestHandler_GetConnectionsForSession(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	connections := handler.GetConnectionsForSession(1)
 	assert.Len(t, connections, 0)
@@ -308,10 +310,11 @@ func TestHandler_GetConnectionsForSession(t *testing.T) {
 func TestHandler_Close(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	err := handler.Close()
 	assert.NoError(t, err)
@@ -320,10 +323,11 @@ func TestHandler_Close(t *testing.T) {
 func TestHandler_GetOnlineUsers(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
@@ -339,10 +343,11 @@ func TestHandler_GetOnlineUsers(t *testing.T) {
 func TestHandler_GetUserPresence(t *testing.T) {
 	mockAuthService := new(service.MockAuthService)
 	mockUserService := new(service.MockUserService)
+	mockChatService := new(service.MockChatService)
 	hub := NewHub()
 	wsConfig := DefaultConfig()
 
-	handler := NewHandler(hub, mockAuthService, mockUserService, "secret", wsConfig)
+	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
 
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

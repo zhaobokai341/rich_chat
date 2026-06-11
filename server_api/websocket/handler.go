@@ -10,27 +10,40 @@ import (
 
 // Handler holds the dependencies for WebSocket handlers
 type Handler struct {
-	hub         *Hub
-	authService service.AuthService
-	userService service.UserService
-	jwtSecret   string
-	wsConfig    Config
+	hub            HubInterface
+	authService    service.AuthService
+	userService    service.UserService
+	chatService    service.ChatService
+	messageHandler MessageHandler
+	jwtSecret      string
+	wsConfig       Config
 }
 
 // NewHandler creates a new WebSocket handler
-func NewHandler(hub *Hub, authService service.AuthService, userService service.UserService, jwtSecret string, wsConfig Config) *Handler {
+func NewHandler(
+	hub HubInterface,
+	authService service.AuthService,
+	userService service.UserService,
+	chatService service.ChatService,
+	jwtSecret string,
+	wsConfig Config,
+) *Handler {
+	e2eeHandler := NewE2EEMessageHandler(chatService, hub)
+
 	return &Handler{
-		hub:         hub,
-		authService: authService,
-		userService: userService,
-		jwtSecret:   jwtSecret,
-		wsConfig:    wsConfig,
+		hub:            hub,
+		authService:    authService,
+		userService:    userService,
+		chatService:    chatService,
+		messageHandler: e2eeHandler,
+		jwtSecret:      jwtSecret,
+		wsConfig:       wsConfig,
 	}
 }
 
 // WebSocketEndpoint handles the WebSocket connection upgrade with authentication
 func (h *Handler) WebSocketEndpoint(c *gin.Context) {
-	UpgradeToWebSocket(c, h.authService, h.userService, h.hub, h.jwtSecret, h.wsConfig)
+	UpgradeToWebSocket(c, h.authService, h.userService, h.chatService, h.hub, h.jwtSecret, h.wsConfig)
 }
 
 // Implement the WebSocketService interface

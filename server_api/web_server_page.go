@@ -11,12 +11,12 @@ import (
 )
 
 // Index page
-func (api *WebServerApi) Index(c *gin.Context) {
+func (api *WebServerAPI) Index(c *gin.Context) {
 	c.String(http.StatusOK, "Welcome to Rich Chat!")
 }
 
 // Get verification token for sensitive operations - Refactored to use TokenService
-func (api *WebServerApi) GetVerifyToken(c *gin.Context) {
+func (api *WebServerAPI) GetVerifyToken(c *gin.Context) {
 	// Get language pack for this request
 	lp := getLanguagePackFromContext(c)
 
@@ -54,12 +54,11 @@ func (api *WebServerApi) GetVerifyToken(c *gin.Context) {
 }
 
 // Login user - Refactored to use AuthService
-func (api *WebServerApi) Login(c *gin.Context) {
+func (api *WebServerAPI) Login(c *gin.Context) {
 	// Parse request
 	req := &service.LoginRequest{
-		Username:    c.PostForm("username"),
-		Password:    c.PostForm("password"),
-		VerifyToken: c.PostForm("verify_token"),
+		Username: c.PostForm("username"),
+		Password: c.PostForm("password"),
 	}
 
 	// Call service
@@ -82,12 +81,11 @@ func (api *WebServerApi) Login(c *gin.Context) {
 }
 
 // Register user - Refactored to use AuthService
-func (api *WebServerApi) Register(c *gin.Context) {
+func (api *WebServerAPI) Register(c *gin.Context) {
 	// Parse request
 	req := &service.RegisterRequest{
-		Username:    c.PostForm("username"),
-		Password:    c.PostForm("password"),
-		VerifyToken: c.PostForm("verify_token"),
+		Username: c.PostForm("username"),
+		Password: c.PostForm("password"),
 	}
 
 	// Call service
@@ -110,7 +108,7 @@ func (api *WebServerApi) Register(c *gin.Context) {
 }
 
 // Delete user account - Refactored to use UserService
-func (api *WebServerApi) DeleteUser(c *gin.Context) {
+func (api *WebServerAPI) DeleteUser(c *gin.Context) {
 	// Get language pack for this request
 	lp := getLanguagePackFromContext(c)
 
@@ -125,9 +123,8 @@ func (api *WebServerApi) DeleteUser(c *gin.Context) {
 
 	// Parse request
 	req := &service.DeleteUserRequest{
-		UserID:      userID,
-		Password:    c.PostForm("user_password"),
-		VerifyToken: c.PostForm("verify_token"),
+		UserID:   userID,
+		Password: c.PostForm("user_password"),
 	}
 
 	// Call service
@@ -148,7 +145,7 @@ func (api *WebServerApi) DeleteUser(c *gin.Context) {
 }
 
 // Get user info - Refactored to use UserService
-func (api *WebServerApi) GetUserProfile(c *gin.Context) {
+func (api *WebServerAPI) GetUserProfile(c *gin.Context) {
 	// Get language pack for this request
 	lp := getLanguagePackFromContext(c)
 
@@ -158,13 +155,6 @@ func (api *WebServerApi) GetUserProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": lp.G("invalid_user_id_format"),
 		})
-		return
-	}
-
-	// Validate verification token
-	verifyToken := c.Query("verify_token")
-	if err := api.tokenService.ValidateAndConsumeToken(verifyToken); err != nil {
-		handleServiceError(c, err)
 		return
 	}
 
@@ -183,7 +173,7 @@ func (api *WebServerApi) GetUserProfile(c *gin.Context) {
 }
 
 // Change user info - Refactored to use UserService
-func (api *WebServerApi) ChangeUserProfile(c *gin.Context) {
+func (api *WebServerAPI) ChangeUserProfile(c *gin.Context) {
 	// Get language pack for this request
 	lp := getLanguagePackFromContext(c)
 
@@ -193,13 +183,6 @@ func (api *WebServerApi) ChangeUserProfile(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": lp.G("invalid_user_id_format"),
 		})
-		return
-	}
-
-	// Validate verification token
-	verifyToken := c.PostForm("verify_token")
-	if err := api.tokenService.ValidateAndConsumeToken(verifyToken); err != nil {
-		handleServiceError(c, err)
 		return
 	}
 
@@ -229,7 +212,7 @@ func (api *WebServerApi) ChangeUserProfile(c *gin.Context) {
 }
 
 // Change user password
-func (api *WebServerApi) ChangeUserPassword(c *gin.Context) {
+func (api *WebServerAPI) ChangeUserPassword(c *gin.Context) {
 	// Get language pack for this request
 	lp := getLanguagePackFromContext(c)
 
@@ -239,13 +222,6 @@ func (api *WebServerApi) ChangeUserPassword(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"message": lp.G("invalid_user_id_format"),
 		})
-		return
-	}
-
-	// Validate verification token
-	verifyToken := c.PostForm("verify_token")
-	if err := api.tokenService.ValidateAndConsumeToken(verifyToken); err != nil {
-		handleServiceError(c, err)
 		return
 	}
 
@@ -273,5 +249,187 @@ func (api *WebServerApi) ChangeUserPassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": lp.G("user_password_changed_successfully"),
+	})
+}
+
+// GetUserBasicInfo retrieves basic user info for chat
+func (api *WebServerAPI) GetUserBasicInfo(c *gin.Context) {
+	lp := getLanguagePackFromContext(c)
+
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_user_id_format"),
+		})
+		return
+	}
+
+	userInfo, err := api.userService.GetUserBasicInfo(c.Request.Context(), userID)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user": userInfo,
+	})
+}
+
+// CreateChatSession creates a new direct chat session
+func (api *WebServerAPI) CreateChatSession(c *gin.Context) {
+	lp := getLanguagePackFromContext(c)
+
+	// Parse user_id from URL parameter (the authenticated user)
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_user_id_format"),
+		})
+		return
+	}
+
+	// Parse request body
+	var req struct {
+		RecipientID int `json:"recipient_id"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_request_body"),
+		})
+		return
+	}
+
+	if req.RecipientID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("recipient_id_required"),
+		})
+		return
+	}
+
+	if req.RecipientID == userID {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("cannot_chat_yourself"),
+		})
+		return
+	}
+
+	// Check if recipient exists
+	exists, err := api.userService.CheckUserExists(req.RecipientID)
+	if err != nil || !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"message": lp.G("user_not_found"),
+		})
+		return
+	}
+
+	sessionResp, err := api.chatService.CreateSession(c.Request.Context(), &service.CreateSessionRequest{
+		CreatorID:   userID,
+		SessionType: "direct",
+		MemberIDs:   []int{req.RecipientID},
+	})
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"session_id": sessionResp.SessionID,
+		"message":    lp.G("chat_session_created"),
+	})
+}
+
+// GetUserSessions retrieves all chat sessions for a user
+func (api *WebServerAPI) GetUserSessions(c *gin.Context) {
+	lp := getLanguagePackFromContext(c)
+
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_user_id_format"),
+		})
+		return
+	}
+
+	sessions, err := api.chatService.GetUserSessions(c.Request.Context(), userID)
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"sessions": sessions,
+		"count":    len(sessions),
+	})
+}
+
+// GetUserPublicKeyHandler retrieves a user's public encryption key
+func (api *WebServerAPI) GetUserPublicKeyHandler(c *gin.Context) {
+	lp := getLanguagePackFromContext(c)
+
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_user_id_format"),
+		})
+		return
+	}
+
+	keyResp, err := api.chatService.GetUserPublicKey(c.Request.Context(), &service.GetUserKeyRequest{
+		UserID: userID,
+	})
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"user_id":    keyResp.UserID,
+		"public_key": keyResp.PublicKey,
+		"algorithm":  keyResp.Algorithm,
+	})
+}
+
+// StoreUserKeyHandler stores a user's encryption key
+func (api *WebServerAPI) StoreUserKeyHandler(c *gin.Context) {
+	lp := getLanguagePackFromContext(c)
+
+	userID, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_user_id_format"),
+		})
+		return
+	}
+
+	var req struct {
+		PublicKey    string `json:"public_key"`
+		KeyAlgorithm string `json:"key_algorithm"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("invalid_request_body"),
+		})
+		return
+	}
+
+	if req.PublicKey == "" || req.KeyAlgorithm == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("public_key_and_algorithm_required"),
+		})
+		return
+	}
+
+	err = api.chatService.StoreUserKey(c.Request.Context(), &service.StoreUserKeyRequest{
+		UserID:       userID,
+		PublicKey:    req.PublicKey,
+		KeyAlgorithm: req.KeyAlgorithm,
+	})
+	if err != nil {
+		handleServiceError(c, err)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": lp.G("key_stored_successfully"),
 	})
 }

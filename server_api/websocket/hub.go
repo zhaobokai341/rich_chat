@@ -13,13 +13,13 @@ type Hub struct {
 	sessionConnections map[int]map[*Connection]bool
 
 	// Inbound requests from the connections.
-	Register   chan *Connection
-	Unregister chan *Connection
+	registerChan   chan *Connection
+	unregisterChan chan *Connection
 
 	// Inbound requests for session management
-	JoinSession  chan JoinSessionRequest
-	LeaveSession chan LeaveSessionRequest
-	Broadcast    chan BroadcastRequest
+	joinSessionChan  chan JoinSessionRequest
+	leaveSessionChan chan LeaveSessionRequest
+	broadcastChan    chan BroadcastRequest
 
 	// Mutex to protect concurrent access to maps
 	mutex sync.RWMutex
@@ -48,11 +48,45 @@ func NewHub() *Hub {
 	return &Hub{
 		connections:        make(map[int]*Connection),
 		sessionConnections: make(map[int]map[*Connection]bool),
-		Register:           make(chan *Connection),
-		Unregister:         make(chan *Connection),
-		JoinSession:        make(chan JoinSessionRequest),
-		LeaveSession:       make(chan LeaveSessionRequest),
-		Broadcast:          make(chan BroadcastRequest),
+		registerChan:       make(chan *Connection),
+		unregisterChan:     make(chan *Connection),
+		joinSessionChan:    make(chan JoinSessionRequest),
+		leaveSessionChan:   make(chan LeaveSessionRequest),
+		broadcastChan:      make(chan BroadcastRequest),
+	}
+}
+
+// Register adds a connection to the hub (direct method call for interface)
+func (h *Hub) Register(conn *Connection) {
+	h.registerChan <- conn
+}
+
+// Unregister removes a connection from the hub (direct method call for interface)
+func (h *Hub) Unregister(conn *Connection) {
+	h.unregisterChan <- conn
+}
+
+// JoinSession adds a connection to a session (direct method call for interface)
+func (h *Hub) JoinSession(conn *Connection, sessionID int) {
+	h.joinSessionChan <- JoinSessionRequest{
+		Connection: conn,
+		SessionID:  sessionID,
+	}
+}
+
+// LeaveSession removes a connection from a session (direct method call for interface)
+func (h *Hub) LeaveSession(conn *Connection, sessionID int) {
+	h.leaveSessionChan <- LeaveSessionRequest{
+		Connection: conn,
+		SessionID:  sessionID,
+	}
+}
+
+// Broadcast sends a message to all connections in a session (direct method call for interface)
+func (h *Hub) Broadcast(msg ServerMessage, sessionID int) {
+	h.broadcastChan <- BroadcastRequest{
+		Message:   msg,
+		SessionID: sessionID,
 	}
 }
 
@@ -60,12 +94,12 @@ func NewHub() *Hub {
 func (h *Hub) Run() {
 	for {
 		select {
-		case conn := <-h.Register:
+		case conn := <-h.registerChan:
 			h.mutex.Lock()
 			h.connections[conn.UserID] = conn
 			h.mutex.Unlock()
 
-		case conn := <-h.Unregister:
+		case conn := <-h.unregisterChan:
 			h.mutex.Lock()
 			if _, ok := h.connections[conn.UserID]; ok {
 				// Remove connection from all sessions
@@ -78,17 +112,17 @@ func (h *Hub) Run() {
 			}
 			h.mutex.Unlock()
 
-		case req := <-h.JoinSession:
+		case req := <-h.joinSessionChan:
 			h.mutex.Lock()
 			h.addToSession(req.Connection, req.SessionID)
 			h.mutex.Unlock()
 
-		case req := <-h.LeaveSession:
+		case req := <-h.leaveSessionChan:
 			h.mutex.Lock()
 			h.removeFromSession(req.Connection, req.SessionID)
 			h.mutex.Unlock()
 
-		case req := <-h.Broadcast:
+		case req := <-h.broadcastChan:
 			h.mutex.RLock()
 			connections, ok := h.sessionConnections[req.SessionID]
 			if ok {

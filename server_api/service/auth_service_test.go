@@ -36,9 +36,8 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 		{
 			name: "successful login",
 			request: &LoginRequest{
-				Username:    "testuser",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "testuser",
+				Password: "password123",
 			},
 			expectedResp: &LoginResponse{
 				UserID:    1,
@@ -48,7 +47,6 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 			setupMocks: func() {
 				passwordHash, _ := bcrypt.GenerateFromPassword([]byte("password123"), bcrypt.DefaultCost)
 
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "testuser").Return(false, nil)
 				mockUserRepo.On("FindByUsername", "testuser").Return(&database.User{
 					ID:           1,
@@ -63,52 +61,34 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 		{
 			name: "invalid input - empty username",
 			request: &LoginRequest{
-				Username:    "",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "",
+				Password: "password123",
 			},
 			expectedResp:  nil,
 			expectedError: ErrInvalidInput,
 			setupMocks:    func() {},
 		},
 		{
-			name: "invalid verification token",
-			request: &LoginRequest{
-				Username:    "testuser",
-				Password:    "password123",
-				VerifyToken: "invalid-token",
-			},
-			expectedResp:  nil,
-			expectedError: ErrInvalidToken,
-			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "invalid-token").Return(ErrInvalidToken)
-			},
-		},
-		{
 			name: "account locked",
 			request: &LoginRequest{
-				Username:    "lockeduser",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "lockeduser",
+				Password: "password123",
 			},
 			expectedResp:  nil,
 			expectedError: ErrAccountLocked,
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "lockeduser").Return(true, nil)
 			},
 		},
 		{
 			name: "user not found",
 			request: &LoginRequest{
-				Username:    "nonexistent",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "nonexistent",
+				Password: "password123",
 			},
 			expectedResp:  nil,
 			expectedError: ErrInvalidPassword,
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "nonexistent").Return(false, nil)
 				mockUserRepo.On("FindByUsername", "nonexistent").Return(nil, errors.New("user not found"))
 				mockRateLimitRepo.On("TrackLoginAttempt", "nonexistent", false).Return(nil)
@@ -117,16 +97,14 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 		{
 			name: "incorrect password",
 			request: &LoginRequest{
-				Username:    "testuser",
-				Password:    "wrongpassword",
-				VerifyToken: "valid-token",
+				Username: "testuser",
+				Password: "wrongpassword",
 			},
 			expectedResp:  nil,
 			expectedError: ErrInvalidPassword,
 			setupMocks: func() {
 				passwordHash, _ := bcrypt.GenerateFromPassword([]byte("correctpassword"), bcrypt.DefaultCost)
 
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "testuser").Return(false, nil)
 				mockUserRepo.On("FindByUsername", "testuser").Return(&database.User{
 					ID:           1,
@@ -183,9 +161,8 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 		{
 			name: "successful registration",
 			request: &RegisterRequest{
-				Username:    "newuser",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "newuser",
+				Password: "password123",
 			},
 			expectedResp: &RegisterResponse{
 				UserID:    1,
@@ -193,7 +170,6 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			},
 			expectedError: nil,
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockUserRepo.On("ExistsByUsername", "newuser").Return(false, nil)
 				mockUserRepo.On("CreateUser", "newuser", mock.AnythingOfType("string")).Return(1, nil)
 				mockTokenService.On("GenerateJWT", 1, 30*24*time.Hour).Return("jwt-token-here", nil)
@@ -202,9 +178,8 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 		{
 			name: "valid short username registration",
 			request: &RegisterRequest{
-				Username:    "ab",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "ab",
+				Password: "password123",
 			},
 			expectedResp: &RegisterResponse{
 				UserID:    2,
@@ -212,7 +187,6 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			},
 			expectedError: nil,
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockUserRepo.On("ExistsByUsername", "ab").Return(false, nil)
 				mockUserRepo.On("CreateUser", "ab", mock.AnythingOfType("string")).Return(2, nil)
 				mockTokenService.On("GenerateJWT", 2, 30*24*time.Hour).Return("jwt-token-ab", nil)
@@ -221,9 +195,8 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 		{
 			name: "valid password registration",
 			request: &RegisterRequest{
-				Username:    "validuser",
-				Password:    "weak",
-				VerifyToken: "valid-token",
+				Username: "validuser",
+				Password: "weak",
 			},
 			expectedResp: &RegisterResponse{
 				UserID:    3,
@@ -231,50 +204,32 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			},
 			expectedError: nil,
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockUserRepo.On("ExistsByUsername", "validuser").Return(false, nil)
 				mockUserRepo.On("CreateUser", "validuser", mock.AnythingOfType("string")).Return(3, nil)
 				mockTokenService.On("GenerateJWT", 3, 30*24*time.Hour).Return("jwt-token-validuser", nil)
 			},
 		},
 		{
-			name: "invalid verification token",
-			request: &RegisterRequest{
-				Username:    "newuser",
-				Password:    "password123",
-				VerifyToken: "invalid-token",
-			},
-			expectedResp:  nil,
-			expectedError: ErrInvalidToken,
-			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "invalid-token").Return(ErrInvalidToken)
-			},
-		},
-		{
 			name: "username already exists",
 			request: &RegisterRequest{
-				Username:    "existinguser",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "existinguser",
+				Password: "password123",
 			},
 			expectedResp:  nil,
 			expectedError: ErrUsernameAlreadyExists,
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockUserRepo.On("ExistsByUsername", "existinguser").Return(true, nil)
 			},
 		},
 		{
 			name: "registration fails",
 			request: &RegisterRequest{
-				Username:    "failuser",
-				Password:    "password123",
-				VerifyToken: "valid-token",
+				Username: "failuser",
+				Password: "password123",
 			},
 			expectedResp:  nil,
-			expectedError: errors.New("registration failed"),
+			expectedError: errors.New("failed to create user: registration failed"),
 			setupMocks: func() {
-				mockTokenService.On("ValidateAndConsumeToken", "valid-token").Return(nil)
 				mockUserRepo.On("ExistsByUsername", "failuser").Return(false, nil)
 				mockUserRepo.On("CreateUser", "failuser", mock.AnythingOfType("string")).Return(0, errors.New("registration failed"))
 			},

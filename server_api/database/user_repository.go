@@ -116,7 +116,7 @@ func (r *PostgresUserRepository) UpdateProfile(userID int, key, value string) er
 	}
 
 	_, err := r.db.Exec(
-		"UPDATE users SET "+key+" = $1 WHERE id = $2",
+		fmt.Sprintf("UPDATE users SET %s = $1 WHERE id = $2", key),
 		value, userID,
 	)
 	if err != nil {
@@ -210,4 +210,16 @@ func (r *PostgresUserRepository) ClearExpiredLock(identifier string) error {
 		return fmt.Errorf("failed to clear expired lock for identifier %s: %w", identifier, err)
 	}
 	return nil
+}
+
+// GetUserBasicInfo retrieves basic user info by ID (for chat)
+func (r *PostgresUserRepository) GetUserBasicInfo(userID int) (*UserBasicInfo, error) {
+	var userInfo UserBasicInfo
+	err := r.db.QueryRow(
+		"SELECT id, username, nickname, bio FROM users WHERE id = $1", userID,
+	).Scan(&userInfo.ID, &userInfo.Username, &userInfo.Nickname, &userInfo.Bio)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user basic info for ID %d: %w", userID, err)
+	}
+	return &userInfo, nil
 }

@@ -220,7 +220,7 @@ CREATE TABLE IF NOT EXISTS offline_encrypted_messages (
     id SERIAL PRIMARY KEY,
     recipient_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
     sender_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
-    session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    session_id INTEGER REFERENCES chat_sessions(id) ON DELETE CASCADE, -- Nullable: allows E2EE without formal session
     encrypted_session_key BYTEA NOT NULL,
     encrypted_content BYTEA NOT NULL,
     iv BYTEA NOT NULL,
@@ -233,6 +233,7 @@ CREATE TABLE IF NOT EXISTS offline_encrypted_messages (
 COMMENT ON TABLE offline_encrypted_messages IS 'Stores encrypted messages for offline users';
 COMMENT ON COLUMN offline_encrypted_messages.encrypted_session_key IS 'Session key encrypted with recipient''s public key';
 COMMENT ON COLUMN offline_encrypted_messages.encrypted_content IS 'Message content encrypted with session key - never store plaintext';
+COMMENT ON COLUMN offline_encrypted_messages.session_id IS 'Optional chat session ID - can be NULL for direct E2EE messages without formal session';
 
 -- ============================================
 -- Online Status Backup Table / 在线状态备份表

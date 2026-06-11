@@ -16,6 +16,7 @@ type UserRepository interface {
 	ExistsByID(id int) (bool, error)
 	ExistsByUsername(username string) (bool, error)
 	GetUserProfile(userID int) (*UserInfo, error)
+	GetUserBasicInfo(userID int) (*UserBasicInfo, error)
 
 	// Update operations
 	UpdateProfile(userID int, key, value string) error

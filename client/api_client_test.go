@@ -54,7 +54,7 @@ func TestRestAPIClient_DeleteUser(t *testing.T) {
 
 	client := NewRestAPIClient(httpClient, "http://test.invalid", languagePack)
 
-	err := client.DeleteUser("1", "password", "token")
+	err := client.DeleteUser("1", "token", "password", "verifyToken")
 	assert.Error(t, err)
 }
 
@@ -64,7 +64,7 @@ func TestRestAPIClient_GetUserProfile(t *testing.T) {
 
 	client := NewRestAPIClient(httpClient, "http://test.invalid", languagePack)
 
-	_, err := client.GetUserProfile("1", "token")
+	_, err := client.GetUserProfile("1", "token", "verifyToken")
 	assert.Error(t, err)
 }
 
@@ -74,7 +74,7 @@ func TestRestAPIClient_UpdateUserProfile(t *testing.T) {
 
 	client := NewRestAPIClient(httpClient, "http://test.invalid", languagePack)
 
-	err := client.UpdateUserProfile("1", "nickname", "newname", "token")
+	err := client.UpdateUserProfile("1", "token", "nickname", "newname", "verifyToken")
 	assert.Error(t, err)
 }
 
@@ -84,7 +84,7 @@ func TestRestAPIClient_ChangePassword(t *testing.T) {
 
 	client := NewRestAPIClient(httpClient, "http://test.invalid", languagePack)
 
-	err := client.ChangePassword("1", "oldpass", "newpass", "token")
+	err := client.ChangePassword("1", "token", "oldpass", "newpass", "verifyToken")
 	assert.Error(t, err)
 }
 

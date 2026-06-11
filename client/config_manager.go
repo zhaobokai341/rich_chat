@@ -15,6 +15,9 @@ type ConfigManager interface {
 	SetToken(token string)
 	SetUserID(userID string)
 	ClearCredentials()
+	HasEncryptionKey(userID int) (bool, error)
+	SaveEncryptionKey(userID int, privateKeyPEM string) error
+	GetEncryptionKey(userID int) (string, error)
 }
 
 // FileConfigManager implements ConfigManager using JSON file storage
@@ -159,4 +162,42 @@ func (m *FileConfigManager) createEmptyConfig(path string) error {
 	}
 
 	return nil
+}
+
+// HasEncryptionKey checks if encryption key exists for user
+func (m *FileConfigManager) HasEncryptionKey(userID int) (bool, error) {
+	keyPath := fmt.Sprintf("%s/keys/%d.pem", m.configDir, userID)
+	_, err := os.Stat(keyPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+// SaveEncryptionKey saves the private key to file
+func (m *FileConfigManager) SaveEncryptionKey(userID int, privateKeyPEM string) error {
+	keysDir := fmt.Sprintf("%s/keys", m.configDir)
+	if err := os.MkdirAll(keysDir, 0700); err != nil {
+		return fmt.Errorf("failed to create keys directory: %w", err)
+	}
+
+	keyPath := fmt.Sprintf("%s/keys/%d.pem", m.configDir, userID)
+	if err := os.WriteFile(keyPath, []byte(privateKeyPEM), 0600); err != nil {
+		return fmt.Errorf("failed to save encryption key: %w", err)
+	}
+
+	return nil
+}
+
+// GetEncryptionKey loads the private key from file
+func (m *FileConfigManager) GetEncryptionKey(userID int) (string, error) {
+	keyPath := fmt.Sprintf("%s/keys/%d.pem", m.configDir, userID)
+	keyData, err := os.ReadFile(keyPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to read encryption key: %w", err)
+	}
+	return string(keyData), nil
 }

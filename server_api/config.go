@@ -11,10 +11,11 @@ import (
 
 // Configuration variables
 const (
-	WEB_PORT         = ":2316" // http port
-	DEFAULT_LANGUAGE = "zh"    // default language (zh/en)
-	HTTPS_FORCE      = false   // force https (RECOMMENDED SET TO TRUE ON PRODUCTION)
-	VERSION          = "1.0.0" // product version, DO NOT CHANGE
+	WEB_PORT         = ":2316"                             // http port
+	DEFAULT_LANGUAGE = "zh"                                // default language (zh/en)
+	LANGUAGE_PACK    = "../lang_pack/server_api/main.json" // language pack file path
+	HTTPS_FORCE      = false                               // force https (RECOMMENDED SET TO TRUE ON PRODUCTION)
+	VERSION          = "1.0.0"                             // product version, DO NOT CHANGE
 )
 
 var (
@@ -60,17 +61,22 @@ const (
 	IP_LIMIT_LOCKOUT_DURATION = time.Minute * 10 // IP lockout duration after IP_LIMIT_VISIT_TIMES
 )
 
+// User input validation constants
+const (
+	ALLOW_MAX_LENGTH_OF_USERNAME = 50  // max length of username
+	ALLOW_MAX_LENGTH_OF_NICKNAME = 50  // max length of nickname
+	ALLOW_MAX_LENGTH_OF_PASSWORD = 100 // max length of password
+	ALLOW_MAX_LENGTH_OF_BIO      = 500 // max length of bio
+	ALLOW_MAX_LENGTH_OF_EMAIL    = 100 // max length of email
+)
+
 // Other constants
 const (
-	ALLOW_USER_AGENT             = "rich_chat"         // allow user agent visit api
-	JWT_EXPIRE_TIME              = time.Hour * 24 * 30 // 30 days, about 1 month
-	ALLOW_MAX_LENGTH_OF_USERNAME = 50                  // max length of username
-	ALLOW_MAX_LENGTH_OF_PASSWORD = 100                 // max length of password
-	ALLOW_MAX_LENGTH_OF_BIO      = 500                 // max length of bio
-	ALLOW_MAX_LENGTH_OF_EMAIL    = 100                 // max length of email
-	VERIFY_TOKEN_EXPIRE_TIME     = time.Minute * 5     // Verification token expire time (5 minutes)
-	MAX_LOGIN_ATTEMPTS           = 5                   // Maximum login attempts before lockout
-	LOCKOUT_DURATION             = time.Minute * 15    // Account lockout duration after max attempts
+	ALLOW_USER_AGENT         = "rich_chat"         // allow user agent visit api
+	JWT_EXPIRE_TIME          = time.Hour * 24 * 30 // 30 days, about 1 month
+	VERIFY_TOKEN_EXPIRE_TIME = time.Minute * 5     // Verification token expire time (5 minutes)
+	MAX_LOGIN_ATTEMPTS       = 5                   // Maximum login attempts before lockout
+	LOCKOUT_DURATION         = time.Minute * 15    // Account lockout duration after max attempts
 )
 
 // WebSocket configuration constants

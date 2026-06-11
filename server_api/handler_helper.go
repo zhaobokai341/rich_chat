@@ -37,6 +37,10 @@ func handleServiceError(c *gin.Context, err error) {
 		c.JSON(http.StatusConflict, gin.H{
 			"message": lp.G("username_already_exists"),
 		})
+	case service.ErrInvalidNicknameFormat:
+		c.JSON(http.StatusBadRequest, gin.H{
+			"message": lp.G("nickname_invalid_format"),
+		})
 	case service.ErrInvalidEmailFormat:
 		log.WithFields(log.Fields{
 			"error": err.Error(),

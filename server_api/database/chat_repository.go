@@ -37,4 +37,18 @@ type ChatRepository interface {
 	CreateGroupChat(ctx context.Context, sessionID int, description, avatarURL *string, maxMembers int, privacyLevel string) error
 	UpdateGroupChat(ctx context.Context, sessionID int, description, avatarURL *string, maxMembers int, privacyLevel string) error
 	GetGroupChat(ctx context.Context, sessionID int) (*GroupChat, error)
+
+	// E2EE Key Management
+	StoreUserKey(ctx context.Context, userKey *UserKey) error
+	GetUserKey(ctx context.Context, userID int) (*UserKey, error)
+	GetUserPublicKey(ctx context.Context, userID int) (string, error)
+	UpdateUserKey(ctx context.Context, userKey *UserKey) error
+	DeactivateUserKey(ctx context.Context, userID int) error
+
+	// E2EE Offline Message Operations
+	StoreOfflineEncryptedMessage(ctx context.Context, offlineMsg *OfflineEncryptedMessage) (int, error)
+	GetUndeliveredOfflineMessages(ctx context.Context, recipientID int) ([]*OfflineEncryptedMessage, error)
+	MarkOfflineMessageDelivered(ctx context.Context, messageID int) error
+	DeleteOfflineMessage(ctx context.Context, messageID int) error
+	GetUndeliveredMessageCount(ctx context.Context, recipientID int) (int, error)
 }

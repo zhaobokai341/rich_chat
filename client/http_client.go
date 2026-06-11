@@ -20,6 +20,8 @@ func NewHTTPClient(userAgent string) *HTTPClient {
 
 // R returns a new request instance
 func (h *HTTPClient) R() *resty.Request {
+	// the following line is for debugging purposes
+	// h.client.SetProxy("http://127.0.0.1:8080")
 	return h.client.R()
 }
 

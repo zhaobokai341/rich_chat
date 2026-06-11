@@ -2,12 +2,15 @@ package websocket
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
+
+	log "github.com/sirupsen/logrus"
 
 	"rich_chat/server_api/service"
 
@@ -64,10 +67,16 @@ type ServerMessage struct {
 type Connection struct {
 	ws             *websocket.Conn // The actual WebSocket connection
 	send           chan []byte     // Buffered channel of outbound messages
-	hub            *Hub            // The Hub that handles this connection
+	hub            HubInterface    // The Hub that handles this connection
 	UserID         int             // The authenticated user ID
 	ActiveSessions map[int]bool    // The user's active chat sessions
 	config         Config          // WebSocket configuration
+	messageHandler MessageHandler  // Message handler (E2EE or other)
+
+	// Rate limiting
+	maxMessagesPerSecond int        // Maximum messages per second
+	lastMessageTime      time.Time  // Timestamp of the last message sent
+	rateLimiterMutex     sync.Mutex // Mutex to protect rate limiter
 }
 
 // WritePump pumps messages from the hub to the WebSocket connection
@@ -85,7 +94,7 @@ func (c *Connection) WritePump() {
 				// The hub closed the channel.
 				err := c.ws.WriteMessage(websocket.CloseMessage, []byte{})
 				if err != nil {
-					log.Printf("Error writing close message: %v", err)
+					log.Errorf("Error writing close message: %v", err)
 				}
 				return
 			}
@@ -126,7 +135,7 @@ func (c *Connection) ReadPump(
 	userService service.UserService,
 ) {
 	defer func() {
-		c.hub.Unregister <- c
+		c.hub.Unregister(c)
 		c.ws.Close()
 	}()
 
@@ -147,7 +156,7 @@ func (c *Connection) ReadPump(
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure,
 			) {
-				log.Printf("WebSocket error: %v", err)
+				log.Errorf("WebSocket error: %v", err)
 			}
 			break
 		}
@@ -155,7 +164,46 @@ func (c *Connection) ReadPump(
 		// Parse the incoming message
 		var clientMsg ClientMessage
 		if err := json.Unmarshal(message, &clientMsg); err != nil {
-			log.Printf("Error parsing message: %v", err)
+			log.Errorf("Error parsing message: %v", err)
+			continue
+		}
+
+		// Check if this is an E2EE message
+		if c.messageHandler != nil && c.messageHandler.IsE2EE(clientMsg.Type) {
+			// Validate the E2EE message
+			if err := c.messageHandler.ValidateMessage(clientMsg); err != nil {
+				log.Errorf("Invalid E2EE message: %v", err)
+				errorMsg := ServerMessage{
+					Type:      "error",
+					SessionID: 0,
+					SenderID:  c.UserID,
+					Content: map[string]interface{}{
+						"error": err.Error(),
+						"type":  clientMsg.Type,
+					},
+					Timestamp: time.Now(),
+				}
+				errorBytes, _ := json.Marshal(errorMsg)
+				c.send <- errorBytes
+				continue
+			}
+
+			// Handle the E2EE message
+			if err := c.messageHandler.HandleMessage(c, clientMsg); err != nil {
+				log.Errorf("Error handling E2EE message: %v", err)
+				errorMsg := ServerMessage{
+					Type:      "error",
+					SessionID: 0,
+					SenderID:  c.UserID,
+					Content: map[string]interface{}{
+						"error": err.Error(),
+						"type":  clientMsg.Type,
+					},
+					Timestamp: time.Now(),
+				}
+				errorBytes, _ := json.Marshal(errorMsg)
+				c.send <- errorBytes
+			}
 			continue
 		}
 
@@ -165,7 +213,7 @@ func (c *Connection) ReadPump(
 			// User wants to join a chat session
 			sessionID, ok := clientMsg.Content.(float64) // JSON numbers are float64
 			if !ok {
-				log.Println("Invalid session ID in join_session message")
+				log.Error("Invalid session ID in join_session message")
 				continue
 			}
 
@@ -173,10 +221,7 @@ func (c *Connection) ReadPump(
 			c.ActiveSessions[sessionIDInt] = true
 
 			// Register the connection with the hub for this session
-			c.hub.JoinSession <- JoinSessionRequest{
-				Connection: c,
-				SessionID:  sessionIDInt,
-			}
+			c.hub.JoinSession(c, sessionIDInt)
 
 			// Send confirmation back to the user
 			response := ServerMessage{
@@ -192,7 +237,7 @@ func (c *Connection) ReadPump(
 			// User wants to leave a chat session
 			sessionID, ok := clientMsg.Content.(float64)
 			if !ok {
-				log.Println("Invalid session ID in leave_session message")
+				log.Error("Invalid session ID in leave_session message")
 				continue
 			}
 
@@ -200,10 +245,7 @@ func (c *Connection) ReadPump(
 			delete(c.ActiveSessions, sessionIDInt)
 
 			// Unregister the connection from the hub for this session
-			c.hub.LeaveSession <- LeaveSessionRequest{
-				Connection: c,
-				SessionID:  sessionIDInt,
-			}
+			c.hub.LeaveSession(c, sessionIDInt)
 
 			// Send confirmation back to the user
 			response := ServerMessage{
@@ -219,19 +261,19 @@ func (c *Connection) ReadPump(
 			// Handle chat message
 			chatData, ok := clientMsg.Content.(map[string]interface{})
 			if !ok {
-				log.Println("Invalid chat message content")
+				log.Error("Invalid chat message content")
 				continue
 			}
 
 			sessionID, ok := chatData["session_id"].(float64)
 			if !ok {
-				log.Println("Missing or invalid session_id in chat message")
+				log.Error("Missing or invalid session_id in chat message")
 				continue
 			}
 
 			content, ok := chatData["content"].(string)
 			if !ok {
-				log.Println("Missing or invalid content in chat message")
+				log.Error("Missing or invalid content in chat message")
 				continue
 			}
 
@@ -247,10 +289,7 @@ func (c *Connection) ReadPump(
 			}
 
 			// Broadcast to all clients in the session
-			c.hub.Broadcast <- BroadcastRequest{
-				Message:   serverMsg,
-				SessionID: int(sessionID),
-			}
+			c.hub.Broadcast(serverMsg, int(sessionID))
 
 		default:
 			// Unknown message type
@@ -272,12 +311,13 @@ func UpgradeToWebSocket(
 	c *gin.Context,
 	authService service.AuthService,
 	userService service.UserService,
-	hub *Hub,
+	chatService service.ChatService,
+	hub HubInterface,
 	jwtSecret string,
 	wsConfig Config,
 ) {
 	// Authenticate the user using JWT from Authorization header
-	userID, err := authenticateUser(c, authService, userService, jwtSecret)
+	userID, err := authenticateUser(c, userService, jwtSecret)
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "Authentication failed"})
 		return
@@ -285,25 +325,83 @@ func UpgradeToWebSocket(
 
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		log.Printf("WebSocket upgrade error: %v", err)
+		log.Errorf("WebSocket upgrade error: %v", err)
 		return
 	}
 
+	// Create E2EE handler
+	e2eeHandler := NewE2EEMessageHandler(chatService, hub)
+
 	connection := &Connection{
-		ws:             conn,
-		send:           make(chan []byte, 256), // Buffered channel
-		hub:            hub,
-		UserID:         userID,
-		ActiveSessions: make(map[int]bool),
-		config:         wsConfig,
+		ws:                   conn,
+		send:                 make(chan []byte, 256), // Buffered channel
+		hub:                  hub,
+		UserID:               userID,
+		ActiveSessions:       make(map[int]bool),
+		config:               wsConfig,
+		messageHandler:       e2eeHandler,
+		maxMessagesPerSecond: 10, // Default rate limit: 10 messages per second
 	}
 
 	// Register the connection with the hub
-	hub.Register <- connection
+	hub.Register(connection)
+
+	// Deliver offline messages if any
+	go deliverOfflineMessages(connection, chatService, e2eeHandler)
 
 	// Start the write and read pumps
 	go connection.WritePump()
 	go connection.ReadPump(authService, userService)
+}
+
+// deliverOfflineMessages delivers pending offline messages when a user connects
+func deliverOfflineMessages(conn *Connection, chatService service.ChatService, e2eeHandler MessageHandler) {
+	// Get undelivered message count
+	count, err := chatService.GetUndeliveredMessageCount(context.Background(), conn.UserID)
+	if err != nil {
+		log.Errorf("Failed to get offline message count for user %d: %v", conn.UserID, err)
+		return
+	}
+
+	if count == 0 {
+		// No offline messages
+		notification := ServerMessage{
+			Type:      "e2ee_offline_notification",
+			SessionID: 0,
+			SenderID:  conn.UserID,
+			Content: map[string]interface{}{
+				"status":        "no_offline_messages",
+				"message_count": 0,
+				"timestamp":     time.Now(),
+			},
+			Timestamp: time.Now(),
+		}
+		_ = conn.SendMessage(notification)
+		return
+	}
+
+	// Notify user about pending messages
+	notification := ServerMessage{
+		Type:      "e2ee_offline_notification",
+		SessionID: 0,
+		SenderID:  conn.UserID,
+		Content: map[string]interface{}{
+			"status":        "has_offline_messages",
+			"message_count": count,
+			"timestamp":     time.Now(),
+		},
+		Timestamp: time.Now(),
+	}
+	_ = conn.SendMessage(notification)
+
+	// Trigger offline sync
+	syncMsg := ClientMessage{
+		Type:      "e2ee_offline_sync",
+		SessionID: 0,
+		Content:   nil,
+		Timestamp: time.Now(),
+	}
+	_ = e2eeHandler.HandleMessage(conn, syncMsg)
 }
 
 // Claims represents JWT claims structure (same as in main.go)
@@ -315,22 +413,27 @@ type Claims struct {
 // authenticateUser validates the JWT token and returns the user ID
 func authenticateUser(
 	c *gin.Context,
-	authService service.AuthService,
 	userService service.UserService,
 	jwtSecret string,
 ) (int, error) {
 	authHeader := c.GetHeader("Authorization")
 	if authHeader == "" {
+		log.Warningf("[WebSocket Auth] No authorization header provided")
 		return 0, fmt.Errorf("no authorization header")
 	}
+
+	log.Debugf("[WebSocket Auth] Received Authorization header: %s...", authHeader[:min(30, len(authHeader))])
 
 	// Expect "Bearer <token>" format
 	tokenString := ""
 	if len(authHeader) >= 7 && strings.HasPrefix(authHeader, "Bearer ") {
 		tokenString = strings.TrimSpace(authHeader[7:])
 	} else {
+		log.Warningf("[WebSocket Auth] Invalid authorization header format: %s", authHeader)
 		return 0, fmt.Errorf("invalid authorization header format")
 	}
+
+	log.Debugf("[WebSocket Auth] Token extracted (length: %d): %s...", len(tokenString), tokenString[:min(30, len(tokenString))])
 
 	// Parse and validate the JWT token (similar to safe_policy.go)
 	claims := &Claims{}
@@ -344,24 +447,36 @@ func authenticateUser(
 		})
 
 	if err != nil {
+		log.Warningf("[WebSocket Auth] Token parse error: %v", err)
 		return 0, fmt.Errorf("token parse error: %w", err)
 	}
 
 	if !token.Valid {
+		log.Warningf("[WebSocket Auth] Token is invalid (expired or malformed)")
 		return 0, fmt.Errorf("invalid token")
 	}
+
+	log.Debugf("[WebSocket Auth] Token validated successfully, claims UserID: %d", claims.UserID)
 
 	// Check if user exists using UserService
 	exists, _ := userService.CheckUserExists(claims.UserID)
 	if !exists {
+		log.Warningf("[WebSocket Auth] User %d does not exist in database", claims.UserID)
 		return 0, fmt.Errorf("user does not exist")
 	}
 
+	log.Debugf("[WebSocket Auth] Authentication successful for user %d", claims.UserID)
 	return claims.UserID, nil
 }
 
 // SendMessage sends a message to the client
 func (c *Connection) SendMessage(msg ServerMessage) error {
+	// Check rate limit
+	if !c.allowMessage() {
+		log.Errorf("Rate limit exceeded for user %d, dropping message", c.UserID)
+		return fmt.Errorf("rate limit exceeded")
+	}
+
 	messageJSON, err := json.Marshal(msg)
 	if err != nil {
 		return err
@@ -377,8 +492,30 @@ func (c *Connection) SendMessage(msg ServerMessage) error {
 	default:
 		// If the send channel is full, close the connection
 		close(c.send)
-		c.hub.Unregister <- c
+		c.hub.Unregister(c)
 	}
 
 	return nil
+}
+
+// allowMessage checks if a message is allowed to be sent based on rate limiting
+func (c *Connection) allowMessage() bool {
+	c.rateLimiterMutex.Lock()
+	defer c.rateLimiterMutex.Unlock()
+
+	if c.maxMessagesPerSecond <= 0 {
+		// No rate limit configured, allow all messages
+		return true
+	}
+
+	now := time.Now()
+	minInterval := time.Second / time.Duration(c.maxMessagesPerSecond)
+
+	// If this is the first message or enough time has passed since the last message
+	if c.lastMessageTime.IsZero() || now.Sub(c.lastMessageTime) >= minInterval {
+		c.lastMessageTime = now
+		return true
+	}
+
+	return false
 }

@@ -75,6 +75,6 @@ func TestLanguageFunctions(t *testing.T) {
 	assert.Equal(t, "zh", getCurrentLanguage())
 
 	// Reset to default
-	SetCurrentLanguage(DEFAULT_LANGUAGE)
-	assert.Equal(t, DEFAULT_LANGUAGE, getCurrentLanguage())
+	SetCurrentLanguage(LANGUAGE)
+	assert.Equal(t, LANGUAGE, getCurrentLanguage())
 }

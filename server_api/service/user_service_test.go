@@ -17,7 +17,7 @@ func TestUserServiceImpl_GetUserProfile(t *testing.T) {
 	mockUserRepo := new(database.MockUserRepository)
 	mockRateLimitRepo := new(database.MockRateLimitRepository)
 
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255)
+	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 1000)
 
 	tests := []struct {
 		name          string
@@ -220,7 +220,7 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
-			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255)
+			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
 
@@ -315,7 +315,7 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
-			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255)
+			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
 
@@ -339,7 +339,7 @@ func TestUserServiceImpl_CheckAccountLocked(t *testing.T) {
 	mockUserRepo := new(database.MockUserRepository)
 	mockRateLimitRepo := new(database.MockRateLimitRepository)
 
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255)
+	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 	tests := []struct {
 		name             string
@@ -378,7 +378,7 @@ func TestUserServiceImpl_CheckAccountLocked(t *testing.T) {
 	}
 
 	t.Run("rate limit repo is nil", func(t *testing.T) {
-		userServiceWithNilRepo := NewUserService(mockUserRepo, nil, 128, 500, 255)
+		userServiceWithNilRepo := NewUserService(mockUserRepo, nil, 128, 500, 255, 255)
 		isLocked := userServiceWithNilRepo.CheckAccountLocked("anyuser")
 		assert.False(t, isLocked)
 	})
@@ -389,7 +389,7 @@ func TestUserServiceImpl_CheckUserExists(t *testing.T) {
 	mockUserRepo := new(database.MockUserRepository)
 	mockRateLimitRepo := new(database.MockRateLimitRepository)
 
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255)
+	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 	tests := []struct {
 		name          string
@@ -547,7 +547,7 @@ func TestUserServiceImpl_ChangeUserPassword(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
-			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255)
+			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 10)
 
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
 

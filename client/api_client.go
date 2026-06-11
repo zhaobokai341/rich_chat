@@ -11,10 +11,10 @@ type APIClient interface {
 	GetVerifyToken() (string, error)
 	Login(username, password, verifyToken string) (*AuthResponse, error)
 	Register(username, password, verifyToken string) (*AuthResponse, error)
-	DeleteUser(userID, password, verifyToken string) error
-	GetUserProfile(userID, verifyToken string) (*UserInfoResponse, error)
-	UpdateUserProfile(userID, key, value, verifyToken string) error
-	ChangePassword(userID, oldPassword, newPassword, verifyToken string) error
+	DeleteUser(userID, token, password, verifyToken string) error
+	GetUserProfile(userID, token, verifyToken string) (*UserInfoResponse, error)
+	UpdateUserProfile(userID, token, key, value, verifyToken string) error
+	ChangePassword(userID, token, oldPassword, newPassword, verifyToken string) error
 	CheckServerHealth() (bool, error)
 }
 
@@ -189,8 +189,12 @@ func (c *RestAPIClient) Register(username, password, verifyToken string) (*AuthR
 }
 
 // DeleteUser deletes a user account
-func (c *RestAPIClient) DeleteUser(userID, password, verifyToken string) error {
+func (c *RestAPIClient) DeleteUser(userID, token, password, verifyToken string) error {
 	resp, err := c.client.R().
+		SetHeaders(map[string]string{
+			"user_token": token,
+			"user_id":    userID,
+		}).
 		SetFormData(map[string]string{
 			"user_password": password,
 			"verify_token":  verifyToken,
@@ -229,8 +233,12 @@ func (c *RestAPIClient) DeleteUser(userID, password, verifyToken string) error {
 }
 
 // GetUserProfile retrieves user profile information
-func (c *RestAPIClient) GetUserProfile(userID, verifyToken string) (*UserInfoResponse, error) {
+func (c *RestAPIClient) GetUserProfile(userID, token, verifyToken string) (*UserInfoResponse, error) {
 	resp, err := c.client.R().
+		SetHeaders(map[string]string{
+			"user_token": token,
+			"user_id":    userID,
+		}).
 		SetQueryParams(map[string]string{
 			"verify_token": verifyToken,
 			"language":     getCurrentLanguage(),
@@ -273,8 +281,12 @@ func (c *RestAPIClient) GetUserProfile(userID, verifyToken string) (*UserInfoRes
 }
 
 // UpdateUserProfile updates a specific user profile field
-func (c *RestAPIClient) UpdateUserProfile(userID, key, value, verifyToken string) error {
+func (c *RestAPIClient) UpdateUserProfile(userID, token, key, value, verifyToken string) error {
 	resp, err := c.client.R().
+		SetHeaders(map[string]string{
+			"user_token": token,
+			"user_id":    userID,
+		}).
 		SetFormData(map[string]string{
 			"verify_token":    verifyToken,
 			"user_info_key":   key,
@@ -304,7 +316,7 @@ func (c *RestAPIClient) UpdateUserProfile(userID, key, value, verifyToken string
 					msg == "认证失败，请检查您的凭据" {
 					return errors.New(c.languagePack.Get("authentication_failed"))
 				}
-				return fmt.Errorf(c.languagePack.Get("user_info_change_failed"), msg)
+				return fmt.Errorf(c.languagePack.Get("user_info_change_request_failed"), msg)
 			}
 		}
 		return fmt.Errorf(c.languagePack.Get("user_info_change_failed_with_status"), resp.StatusCode())
@@ -314,8 +326,12 @@ func (c *RestAPIClient) UpdateUserProfile(userID, key, value, verifyToken string
 }
 
 // ChangePassword changes the user's password
-func (c *RestAPIClient) ChangePassword(userID, oldPassword, newPassword, verifyToken string) error {
+func (c *RestAPIClient) ChangePassword(userID, token, oldPassword, newPassword, verifyToken string) error {
 	resp, err := c.client.R().
+		SetHeaders(map[string]string{
+			"user_token": token,
+			"user_id":    userID,
+		}).
 		SetFormData(map[string]string{
 			"verify_token": verifyToken,
 			"old_password": oldPassword,
@@ -374,15 +390,24 @@ func (c *RestAPIClient) CheckServerHealth() (bool, error) {
 	return true, nil
 }
 
-// currentLanguage holds the current language preference
-var currentLanguage = DEFAULT_LANGUAGE
+// SetAuthHeaders sets authentication headers for all subsequent requests
+func (c *RestAPIClient) SetAuthHeaders(token, userID string) {
+	c.client.SetHeader("user_token", token)
+	c.client.SetHeader("user_id", userID)
+}
+
+// ClearAuthHeaders clears authentication headers
+func (c *RestAPIClient) ClearAuthHeaders() {
+	c.client.SetHeader("user_token", "")
+	c.client.SetHeader("user_id", "")
+}
 
 // getCurrentLanguage returns the current language setting
 func getCurrentLanguage() string {
-	return currentLanguage
+	return LANGUAGE
 }
 
 // SetCurrentLanguage sets the current language preference
 func SetCurrentLanguage(lang string) {
-	currentLanguage = lang
+	LANGUAGE = lang
 }

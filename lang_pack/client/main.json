@@ -3,6 +3,58 @@
         "zh": "账号已被锁定，请稍后再试",
         "en": "Account is locked, please try later"
     },
+    "main_menu_title": {
+        "zh": "\n=== 主菜单 ===",
+        "en": "\n=== Main Menu ==="
+    },
+    "menu_exit": {
+        "zh": "退出程序",
+        "en": "Exit Program"
+    },
+    "menu_view_modify_user_info": {
+        "zh": "查看/修改个人资料",
+        "en": "View/Modify Profile"
+    },
+    "menu_change_password": {
+        "zh": "修改密码",
+        "en": "Change Password"
+    },
+    "menu_logout": {
+        "zh": "退出登录",
+        "en": "Logout"
+    },
+    "menu_delete_account": {
+        "zh": "注销账号",
+        "en": "Delete Account"
+    },
+    "menu_chat": {
+        "zh": "聊天",
+        "en": "Chat"
+    },
+    "menu_login": {
+        "zh": "登录",
+        "en": "Login"
+    },
+    "menu_register": {
+        "zh": "注册",
+        "en": "Register"
+    },
+    "menu_modify_nickname": {
+        "zh": "修改昵称",
+        "en": "Modify Nickname"
+    },
+    "menu_modify_email": {
+        "zh": "修改邮箱",
+        "en": "Modify Email"
+    },
+    "menu_modify_bio": {
+        "zh": "修改个人简介",
+        "en": "Modify Bio"
+    },
+    "menu_back": {
+        "zh": "返回",
+        "en": "Back"
+    },
     "choose_login_method": {
         "zh": "请选择登录方式\n        1. 登录\n        2. 注册\n        3. 退出：",
         "en": "Please choose login method\n        1. Login\n        2. Register\n        3. Exit:"
@@ -28,8 +80,8 @@
         "en": "Confirm password:"
     },
     "choose_action": {
-        "zh": "请选择操作\n        1. 退出程序\n        2. 查看/修改个人资料\n        3. 修改密码\n        4. 退出登录\n        5. 注销账号：",
-        "en": "Please choose action\n        1. Exit program\n        2. Visit/Edit your profile\n        3. Change password\n        4. Logout\n        5. Delete account:"
+        "zh": "请选择操作\n        1. 退出程序\n        2. 查看/修改个人资料\n        3. 修改密码\n        4. 退出登录\n        5. 注销账号\n        6. 聊天：",
+        "en": "Please choose action\n        1. Exit program\n        2. Visit/Edit your profile\n        3. Change password\n        4. Logout\n        5. Delete account\n        6. Chat:"
     },
     "create_config_dir_error": {
         "zh": "创建配置文件夹错误",
@@ -178,6 +230,10 @@
     "user_id_not_found": {
         "zh": "用户ID未找到，已清空user_token",
         "en": "User id not found, user_token cleared"
+    },
+    "user_token_not_found": {
+        "zh": "用户令牌未找到",
+        "en": "User token not found"
     },
     "user_id_or_token_not_string": {
         "zh": "用户ID或token不是字符串，已清空user_token和user_id",
@@ -371,10 +427,6 @@
         "zh": "读取输入失败",
         "en": "Failed to read input"
     },
-    "language_changed_successfully": {
-        "zh": "语言切换成功",
-        "en": "Language changed successfully"
-    },
     "failed_to_read_choice": {
         "zh": "读取选择失败",
         "en": "Failed to read choice"
@@ -402,5 +454,257 @@
     "user_id_not_found_in_token": {
         "zh": "在令牌中未找到用户ID",
         "en": "User ID not found in token"
+    },
+    "chat_menu_title": {
+        "zh": "\n=== 聊天菜单 ===",
+        "en": "\n=== Chat Menu ==="
+    },
+    "chat_connected_title": {
+        "zh": "\n=== 已连接聊天 ===",
+        "en": "\n=== Chat Connected ==="
+    },
+    "chat_connected_message": {
+        "zh": "已连接到 %s",
+        "en": "Connected to %s"
+    },
+    "chat_my_sessions": {
+        "zh": "我的聊天会话",
+        "en": "My Chat Sessions"
+    },
+    "chat_generate_keys": {
+        "zh": "生成加密密钥",
+        "en": "Generate Encryption Keys"
+    },
+    "chat_new_chat": {
+        "zh": "开始新聊天",
+        "en": "New Chat"
+    },
+    "chat_back_to_main": {
+        "zh": "返回主菜单",
+        "en": "Back to Main Menu"
+    },
+    "choose_chat_action": {
+        "zh": "请选择操作：",
+        "en": "Please choose action:"
+    },
+    "select_user_to_invite": {
+        "zh": "请输入要邀请的用户ID：",
+        "en": "Please enter user ID to invite:"
+    },
+    "new_chat_title": {
+        "zh": "\n=== 开始新聊天 ===",
+        "en": "\n=== New Chat ==="
+    },
+    "enter_user_id": {
+        "zh": "请输入用户ID：",
+        "en": "Please enter user ID:"
+    },
+    "getting_user_info": {
+        "zh": "正在获取用户信息...",
+        "en": "Getting user info..."
+    },
+    "user_not_found": {
+        "zh": "用户不存在",
+        "en": "User not found"
+    },
+    "user_to_chat": {
+        "zh": "聊天对象",
+        "en": "Chat with"
+    },
+    "confirm_create_chat": {
+        "zh": "确认创建聊天？(y/n)：",
+        "en": "Confirm create chat? (y/n):"
+    },
+    "chat_creation_cancelled": {
+        "zh": "聊天创建已取消",
+        "en": "Chat creation cancelled"
+    },
+    "invalid_selection": {
+        "zh": "无效的选择",
+        "en": "Invalid selection"
+    },
+    "cannot_chat_yourself": {
+        "zh": "不能与自己聊天",
+        "en": "Cannot chat with yourself"
+    },
+    "creating_chat_session": {
+        "zh": "正在创建聊天会话...",
+        "en": "Creating chat session..."
+    },
+    "create_session_failed": {
+        "zh": "创建聊天会话失败: %v",
+        "en": "Failed to create chat session: %v"
+    },
+    "chat_session_created": {
+        "zh": "聊天会话创建成功！",
+        "en": "Chat session created successfully!"
+    },
+    "session_id_display": {
+        "zh": "会话ID: %d",
+        "en": "Session ID: %d"
+    },
+    "loading_sessions": {
+        "zh": "正在加载聊天会话...",
+        "en": "Loading chat sessions..."
+    },
+    "get_sessions_failed": {
+        "zh": "获取聊天会话失败: %v",
+        "en": "Failed to get chat sessions: %v"
+    },
+    "no_sessions_found": {
+        "zh": "未找到聊天会话",
+        "en": "No chat sessions found"
+    },
+    "my_sessions_title": {
+        "zh": "\n=== 我的聊天会话 ===",
+        "en": "\n=== My Chat Sessions ==="
+    },
+    "select_session": {
+        "zh": "请选择要进入的会话编号：",
+        "en": "Please select session number:"
+    },
+    "generating_keys": {
+        "zh": "正在生成加密密钥...",
+        "en": "Generating encryption keys..."
+    },
+    "keys_generated_successfully": {
+        "zh": "加密密钥生成成功！",
+        "en": "Encryption keys generated successfully!"
+    },
+    "key_generation_failed": {
+        "zh": "密钥生成失败: %v",
+        "en": "Key generation failed: %v"
+    },
+    "key_marshal_failed": {
+        "zh": "密钥序列化失败: %v",
+        "en": "Key marshaling failed: %v"
+    },
+    "key_save_failed": {
+        "zh": "密钥保存失败: %v",
+        "en": "Key save failed: %v"
+    },
+    "key_upload_failed": {
+        "zh": "密钥上传失败: %v",
+        "en": "Key upload failed: %v"
+    },
+    "connecting_chat": {
+        "zh": "正在连接聊天服务器...",
+        "en": "Connecting to chat server..."
+    },
+    "generating_keys_for_chat": {
+        "zh": "正在为聊天生成密钥...",
+        "en": "Generating keys for chat..."
+    },
+    "key_generation_failed_continue_anyway": {
+        "zh": "密钥生成失败，但将继续尝试聊天",
+        "en": "Key generation failed, but will try to continue chat"
+    },
+    "fetching_partner_key": {
+        "zh": "正在获取对方公钥...",
+        "en": "Fetching partner's public key..."
+    },
+    "get_public_key_failed": {
+        "zh": "获取公钥失败: %v",
+        "en": "Failed to get public key: %v"
+    },
+    "partner_key_not_found_continue_anyway": {
+        "zh": "未找到对方公钥，但将继续尝试",
+        "en": "Partner's public key not found, but will try to continue"
+    },
+    "chat_started": {
+        "zh": "\n=== 聊天已开始 ===",
+        "en": "\n=== Chat Started ==="
+    },
+    "chatting_with": {
+        "zh": "正在与 %s 聊天",
+        "en": "Chatting with %s"
+    },
+    "chat_instructions": {
+        "zh": "输入 /quit 或 /exit 退出聊天",
+        "en": "Type /quit or /exit to leave chat"
+    },
+    "leaving_chat": {
+        "zh": "正在退出聊天...",
+        "en": "Leaving chat..."
+    },
+    "chat_status_online": {
+        "zh": "在线",
+        "en": "Online"
+    },
+    "cannot_send_without_partner_key": {
+        "zh": "无法发送消息：未获取对方公钥",
+        "en": "Cannot send message: partner's public key not available"
+    },
+    "store_key_failed": {
+        "zh": "存储密钥失败: %v",
+        "en": "Failed to store key: %v"
+    },
+    "get_user_info_failed": {
+        "zh": "获取用户信息失败: %v",
+        "en": "Failed to get user info: %v"
+    },
+    "failed_to_parse_response": {
+        "zh": "解析响应失败",
+        "en": "Failed to parse response"
+    },
+    "save_credentials_failed": {
+        "zh": "保存凭证失败: %v",
+        "en": "Failed to save credentials: %v"
+    },
+    "user_info_change_failed_with_status": {
+        "zh": "修改用户信息失败，状态码: %d",
+        "en": "Failed to change user info with status: %d"
+    },
+    "user_info_failed": {
+        "zh": "获取用户信息失败: %s",
+        "en": "Failed to get user info: %s"
+    },
+    "user_info_failed_with_status": {
+        "zh": "获取用户信息失败，状态码: %d",
+        "en": "Failed to get user info with status: %d"
+    },
+    "invalid_user_id": {
+        "zh": "无效的用户ID",
+        "en": "Invalid user ID"
+    },
+    "private_key_security_warning": {
+        "zh": "\n⚠️  安全警告 ⚠️\n您的私钥已生成并保存在: %s\n\n私钥用于加密和解密您的所有消息，请务必妥善保管！\n- 不要将私钥分享给任何人\n- 建议备份私钥到安全的位置\n- 如果丢失私钥，将无法解密历史消息\n- 更换设备时需要手动迁移私钥\n\n按回车键继续...",
+        "en": "\n⚠️  SECURITY WARNING ⚠️\nYour private key has been generated and saved to: %s\n\nThis key is used to encrypt and decrypt all your messages. Please keep it safe!\n- Never share your private key with anyone\n- Backup your private key to a secure location\n- If you lose your private key, you cannot decrypt historical messages\n- You need to manually migrate your private key when changing devices\n\nPress Enter to continue..."
+    },
+    "new_device_detected": {
+        "zh": "\n🔐 检测到新设备登录\n此设备上没有找到您的私钥。\n\n要解密历史消息，您需要从旧设备迁移私钥文件。\n私钥文件位置: %s\n\n请选择操作:\n1. 上传私钥文件以解密历史消息\n2. 生成新密钥（将无法解密历史消息）\n3. 取消\n\n请输入选项编号：",
+        "en": "\n🔐 New Device Detected\nNo private key found on this device.\n\nTo decrypt historical messages, you need to migrate your private key file from your old device.\nPrivate key file location: %s\n\nPlease choose an action:\n1. Upload private key file to decrypt historical messages\n2. Generate new key (will NOT be able to decrypt historical messages)\n3. Cancel\n\nPlease enter option number: "
+    },
+    "uploading_public_key_to_server": {
+        "zh": "正在上传公钥到服务器...",
+        "en": "Uploading public key to server..."
+    },
+    "key_upload_failed_continue_anyway": {
+        "zh": "密钥上传失败，但将继续尝试聊天",
+        "en": "Key upload failed, but will try to continue chat"
+    },
+    "please_select_private_key_file": {
+        "zh": "请输入私钥文件路径：",
+        "en": "Please enter private key file path: "
+    },
+    "private_key_file_not_found": {
+        "zh": "找不到私钥文件: %s",
+        "en": "Private key file not found: %s"
+    },
+    "private_key_loaded_successfully": {
+        "zh": "私钥加载成功！",
+        "en": "Private key loaded successfully!"
+    },
+    "invalid_private_key_file": {
+        "zh": "无效的私钥文件格式",
+        "en": "Invalid private key file format"
+    },
+    "private_key_upload_failed": {
+        "zh": "私钥上传失败: %v",
+        "en": "Private key upload failed: %v"
+    },
+    "private_key_imported_successfully": {
+        "zh": "私钥导入成功！您现在可以解密历史消息。",
+        "en": "Private key imported successfully! You can now decrypt historical messages."
     }
 }

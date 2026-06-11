@@ -15,13 +15,16 @@ type ServiceConfig struct {
 	MaxPasswordLength int
 	MaxBioLength      int
 	MaxEmailLength    int
+	MaxNicknameLength int
 }
 
 // Services holds all service instances
 type Services struct {
-	AuthService  AuthService
-	UserService  UserService
-	TokenService TokenService
+	AuthService          AuthService
+	UserService          UserService
+	TokenService         TokenService
+	E2EEncryptionService E2EEncryptionService
+	ChatService          ChatService
 }
 
 // NewServices creates and initializes all services
@@ -56,12 +59,23 @@ func NewServices(
 	// Create user service
 	userService := NewUserService(
 		userRepo, rateLimitRepo,
-		config.MaxPasswordLength, config.MaxBioLength, config.MaxEmailLength,
+		config.MaxPasswordLength, config.MaxBioLength, config.MaxEmailLength, config.MaxNicknameLength,
 	)
 
+	// Create E2EE encryption service
+	e2eEncryptionService := NewE2EEncryptionService()
+
+	// Get chat repository from database service
+	chatRepo := dbService.GetChatRepository()
+
+	// Create chat service
+	chatService := NewChatService(chatRepo, userRepo, e2eEncryptionService)
+
 	return &Services{
-		AuthService:  authService,
-		UserService:  userService,
-		TokenService: tokenService,
+		AuthService:          authService,
+		UserService:          userService,
+		TokenService:         tokenService,
+		E2EEncryptionService: e2eEncryptionService,
+		ChatService:          chatService,
 	}
 }

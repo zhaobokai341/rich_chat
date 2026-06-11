@@ -17,7 +17,8 @@ func TestUserService_DeleteAccount(t *testing.T) {
 			password: "password123",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.DeleteUserFunc = func(userID, password, verifyToken string) error {
+				config.SetToken("test-token")
+				api.DeleteUserFunc = func(userID, token, password, verifyToken string) error {
 					return nil
 				}
 			},
@@ -28,7 +29,8 @@ func TestUserService_DeleteAccount(t *testing.T) {
 			password: "wrongpassword",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.DeleteUserFunc = func(userID, password, verifyToken string) error {
+				config.SetToken("test-token")
+				api.DeleteUserFunc = func(userID, token, password, verifyToken string) error {
 					return errors.New("invalid password")
 				}
 			},
@@ -48,7 +50,7 @@ func TestUserService_DeleteAccount(t *testing.T) {
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
 				config.SetToken("test-token")
-				api.DeleteUserFunc = func(userID, password, verifyToken string) error {
+				api.DeleteUserFunc = func(userID, token, password, verifyToken string) error {
 					return nil
 				}
 			},
@@ -101,7 +103,8 @@ func TestUserService_GetProfile(t *testing.T) {
 			name: "successful profile retrieval",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.GetUserProfileFunc = func(userID, verifyToken string) (*UserInfoResponse, error) {
+				config.SetToken("test-token")
+				api.GetUserProfileFunc = func(userID, token, verifyToken string) (*UserInfoResponse, error) {
 					return CreateSuccessUserInfoResponse(), nil
 				}
 			},
@@ -129,7 +132,8 @@ func TestUserService_GetProfile(t *testing.T) {
 			name: "profile retrieval fails - API error",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.GetUserProfileFunc = func(userID, verifyToken string) (*UserInfoResponse, error) {
+				config.SetToken("test-token")
+				api.GetUserProfileFunc = func(userID, token, verifyToken string) (*UserInfoResponse, error) {
 					return nil, errors.New("network error")
 				}
 			},
@@ -139,7 +143,8 @@ func TestUserService_GetProfile(t *testing.T) {
 			name: "profile retrieval fails - empty response",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.GetUserProfileFunc = func(userID, verifyToken string) (*UserInfoResponse, error) {
+				config.SetToken("test-token")
+				api.GetUserProfileFunc = func(userID, token, verifyToken string) (*UserInfoResponse, error) {
 					return &UserInfoResponse{Data: nil}, nil
 				}
 			},
@@ -193,7 +198,8 @@ func TestUserService_UpdateProfile(t *testing.T) {
 			value: "New Nickname",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.UpdateUserProfileFunc = func(userID, key, value, verifyToken string) error {
+				config.SetToken("test-token")
+				api.UpdateUserProfileFunc = func(userID, token, key, value, verifyToken string) error {
 					return nil
 				}
 			},
@@ -205,7 +211,8 @@ func TestUserService_UpdateProfile(t *testing.T) {
 			value: "New bio text",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.UpdateUserProfileFunc = func(userID, key, value, verifyToken string) error {
+				config.SetToken("test-token")
+				api.UpdateUserProfileFunc = func(userID, token, key, value, verifyToken string) error {
 					return nil
 				}
 			},
@@ -226,7 +233,8 @@ func TestUserService_UpdateProfile(t *testing.T) {
 			value: "New Nickname",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.UpdateUserProfileFunc = func(userID, key, value, verifyToken string) error {
+				config.SetToken("test-token")
+				api.UpdateUserProfileFunc = func(userID, token, key, value, verifyToken string) error {
 					return errors.New("update failed")
 				}
 			},
@@ -275,7 +283,8 @@ func TestUserService_ChangePassword(t *testing.T) {
 			newPassword: "newpassword456",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.ChangePasswordFunc = func(userID, oldPassword, newPassword, verifyToken string) error {
+				config.SetToken("test-token")
+				api.ChangePasswordFunc = func(userID, token, oldPassword, newPassword, verifyToken string) error {
 					return nil
 				}
 			},
@@ -287,7 +296,8 @@ func TestUserService_ChangePassword(t *testing.T) {
 			newPassword: "newpassword456",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.ChangePasswordFunc = func(userID, oldPassword, newPassword, verifyToken string) error {
+				config.SetToken("test-token")
+				api.ChangePasswordFunc = func(userID, token, oldPassword, newPassword, verifyToken string) error {
 					return errors.New("invalid old password")
 				}
 			},
@@ -308,7 +318,8 @@ func TestUserService_ChangePassword(t *testing.T) {
 			newPassword: "short",
 			mockSetup: func(api *MockAPIClient, config *MockConfigManager) {
 				config.SetUserID("1")
-				api.ChangePasswordFunc = func(userID, oldPassword, newPassword, verifyToken string) error {
+				config.SetToken("test-token")
+				api.ChangePasswordFunc = func(userID, token, oldPassword, newPassword, verifyToken string) error {
 					return errors.New("password too short")
 				}
 			},
