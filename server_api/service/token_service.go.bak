@@ -6,53 +6,60 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v4"
 	log "github.com/sirupsen/logrus"
 
 	"rich_chat/server_api/database"
 )
 
+// JWTConfig holds JWT configuration
+type JWTConfig struct {
+	Secret     string
+	Expiration time.Duration
+	Issuer     string
+}
+
 // TokenServiceImpl implements TokenService
 type TokenServiceImpl struct {
+	jwtConfig JWTConfig
 	tokenRepo database.TokenRepository
-	jwtSecret string
-	issuer    string
 }
 
 // NewTokenService creates a new token service
-func NewTokenService(
-	tokenRepo database.TokenRepository,
-	jwtSecret string,
-	issuer string,
-) *TokenServiceImpl {
+func NewTokenService(jwtConfig JWTConfig, tokenRepo database.TokenRepository) *TokenServiceImpl {
 	return &TokenServiceImpl{
+		jwtConfig: jwtConfig,
 		tokenRepo: tokenRepo,
-		jwtSecret: jwtSecret,
-		issuer:    issuer,
 	}
+}
+
+// Claims represents JWT claims
+type Claims struct {
+	UserID int `json:"user_id"`
+	jwt.RegisteredClaims
 }
 
 // GenerateJWT generates a JWT token for a user
 func (s *TokenServiceImpl) GenerateJWT(userID int, expiration time.Duration) (string, error) {
-	// Create token claims
-	claims := jwt.MapClaims{
-		"user_id": userID,
-		"iss":     s.issuer,
-		"iat":     time.Now().Unix(),
-		"exp":     time.Now().Add(expiration).Unix(),
+	expirationTime := time.Now().Add(expiration)
+
+	claims := &Claims{
+		UserID: userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    s.jwtConfig.Issuer,
+		},
 	}
 
-	// Create token
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-
-	// Sign token
-	tokenString, err := token.SignedString([]byte(s.jwtSecret))
+	tokenString, err := token.SignedString([]byte(s.jwtConfig.Secret))
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id": userID,
 			"error":   err.Error(),
-		}).Error("Failed to sign JWT token")
-		return "", fmt.Errorf("failed to sign JWT token: %w", err)
+		}).Error("Failed to generate JWT token")
+		return "", fmt.Errorf("failed to generate token: %w", err)
 	}
 
 	log.WithFields(log.Fields{
@@ -64,31 +71,18 @@ func (s *TokenServiceImpl) GenerateJWT(userID int, expiration time.Duration) (st
 
 // GenerateVerificationToken generates a random verification token
 func (s *TokenServiceImpl) GenerateVerificationToken() (string, error) {
-	// Generate random bytes
 	bytes := make([]byte, 32)
-	_, err := rand.Read(bytes)
-	if err != nil {
+	if _, err := rand.Read(bytes); err != nil {
 		log.WithFields(log.Fields{
 			"error": err.Error(),
-		}).Error("Failed to generate random bytes for verification token")
-		return "", fmt.Errorf("failed to generate random bytes: %w", err)
+		}).Error("Failed to generate verification token")
+		return "", fmt.Errorf("failed to generate verification token: %w", err)
 	}
-
-	// Convert to hex string
-	token := hex.EncodeToString(bytes)
-
-	log.Debug("Verification token generated successfully")
-
-	return token, nil
+	return hex.EncodeToString(bytes), nil
 }
 
 // StoreVerificationToken stores a verification token
 func (s *TokenServiceImpl) StoreVerificationToken(token string, ttl time.Duration) error {
-	if s.tokenRepo == nil {
-		log.Warning("Token repository not available")
-		return fmt.Errorf("token repository not available")
-	}
-
 	err := s.tokenRepo.StoreVerifyToken(token, ttl)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -98,14 +92,18 @@ func (s *TokenServiceImpl) StoreVerificationToken(token string, ttl time.Duratio
 		return fmt.Errorf("failed to store verification token: %w", err)
 	}
 
+	log.WithFields(log.Fields{
+		"token": token,
+		"ttl":   ttl,
+	}).Debug("Verification token stored successfully")
+
 	return nil
 }
 
 // ValidateAndConsumeToken validates and consumes a verification token
 func (s *TokenServiceImpl) ValidateAndConsumeToken(token string) error {
-	if s.tokenRepo == nil {
-		log.Warning("Token repository not available")
-		return fmt.Errorf("token repository not available")
+	if token == "" {
+		return ErrInvalidToken
 	}
 
 	valid, err := s.tokenRepo.VerifyAndConsumeToken(token)

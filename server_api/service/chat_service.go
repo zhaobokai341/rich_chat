@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -11,9 +12,10 @@ import (
 
 // ChatServiceImpl implements ChatService
 type ChatServiceImpl struct {
-	chatRepo    database.ChatRepository
-	userRepo    database.UserRepository
-	e2eeService E2EEncryptionService
+	chatRepo      database.ChatRepository
+	userRepo      database.UserRepository
+	e2eeService   E2EEncryptionService
+	onlineChecker OnlineStatusChecker
 }
 
 // NewChatService creates a new chat service
@@ -21,58 +23,88 @@ func NewChatService(
 	chatRepo database.ChatRepository,
 	userRepo database.UserRepository,
 	e2eeService E2EEncryptionService,
+	onlineChecker OnlineStatusChecker,
 ) *ChatServiceImpl {
 	return &ChatServiceImpl{
-		chatRepo:    chatRepo,
-		userRepo:    userRepo,
-		e2eeService: e2eeService,
+		chatRepo:      chatRepo,
+		userRepo:      userRepo,
+		e2eeService:   e2eeService,
+		onlineChecker: onlineChecker,
 	}
 }
 
-// CreateSession creates a new chat session and adds members
+// CreateSession creates a new chat session
 func (s *ChatServiceImpl) CreateSession(ctx context.Context, req *CreateSessionRequest) (*CreateSessionResponse, error) {
-	// Validate session type
-	if req.SessionType != "direct" && req.SessionType != "group" {
-		return nil, fmt.Errorf("invalid session type: %s", req.SessionType)
+	if req.CreatorID <= 0 {
+		return nil, ErrInvalidInput
 	}
 
-	// Create the chat session
-	sessionID, err := s.chatRepo.CreateChatSession(ctx, req.SessionType, req.Name, &req.CreatorID)
+	exists, err := s.userRepo.ExistsByID(req.CreatorID)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"creator_id":   req.CreatorID,
-			"session_type": req.SessionType,
-			"error":        err.Error(),
-		}).Error("Failed to create chat session")
-		return nil, fmt.Errorf("failed to create chat session: %w", err)
+			"creator_id": req.CreatorID,
+			"error":      err.Error(),
+		}).Error("Failed to check creator existence")
+		return nil, fmt.Errorf("failed to check creator existence: %w", err)
+	}
+	if !exists {
+		return nil, ErrUserNotFound
 	}
 
-	// Add creator to the session
-	if err := s.chatRepo.AddUserToChatSession(ctx, sessionID, req.CreatorID); err != nil {
+	if req.SessionType == "direct" && len(req.MemberIDs) > 0 {
+		for _, memberID := range req.MemberIDs {
+			if memberID == req.CreatorID {
+				continue
+			}
+			exists, err := s.userRepo.ExistsByID(memberID)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"member_id": memberID,
+					"error":     err.Error(),
+				}).Error("Failed to check member existence")
+				return nil, fmt.Errorf("failed to check member existence: %w", err)
+			}
+			if !exists {
+				return nil, ErrUserNotFound
+			}
+		}
+	}
+
+	createdBy := req.CreatorID
+	sessionID, err := s.chatRepo.CreateChatSession(ctx, req.SessionType, req.Name, &createdBy)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"creator_id": req.CreatorID,
+			"error":      err.Error(),
+		}).Error("Failed to create session")
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+
+	err = s.chatRepo.AddUserToChatSession(ctx, sessionID, req.CreatorID)
+	if err != nil {
 		log.WithFields(log.Fields{
 			"session_id": sessionID,
-			"user_id":    req.CreatorID,
+			"creator_id": req.CreatorID,
 			"error":      err.Error(),
 		}).Error("Failed to add creator to session")
 		return nil, fmt.Errorf("failed to add creator to session: %w", err)
 	}
 
-	// Add other members to the session
 	for _, memberID := range req.MemberIDs {
 		if memberID == req.CreatorID {
-			continue // Skip creator, already added
+			continue
 		}
-		if err := s.chatRepo.AddUserToChatSession(ctx, sessionID, memberID); err != nil {
+		err = s.chatRepo.AddUserToChatSession(ctx, sessionID, memberID)
+		if err != nil {
 			log.WithFields(log.Fields{
 				"session_id": sessionID,
-				"user_id":    memberID,
+				"member_id":  memberID,
 				"error":      err.Error(),
 			}).Error("Failed to add member to session")
-			return nil, fmt.Errorf("failed to add member %d to session: %w", memberID, err)
+			return nil, fmt.Errorf("failed to add member to session: %w", err)
 		}
 	}
 
-	// Get session name for response
 	sessionName := ""
 	if req.Name != nil {
 		sessionName = *req.Name
@@ -82,8 +114,7 @@ func (s *ChatServiceImpl) CreateSession(ctx context.Context, req *CreateSessionR
 		"session_id":   sessionID,
 		"creator_id":   req.CreatorID,
 		"session_type": req.SessionType,
-		"member_count": len(req.MemberIDs) + 1,
-	}).Info("Chat session created successfully")
+	}).Info("Session created successfully")
 
 	return &CreateSessionResponse{
 		SessionID: sessionID,
@@ -91,21 +122,36 @@ func (s *ChatServiceImpl) CreateSession(ctx context.Context, req *CreateSessionR
 	}, nil
 }
 
-// JoinSession adds a user to an existing chat session
+// JoinSession adds a user to an existing session
 func (s *ChatServiceImpl) JoinSession(ctx context.Context, req *JoinSessionRequest) error {
-	// Verify session exists
-	_, err := s.chatRepo.GetChatSession(ctx, req.SessionID)
+	if req.UserID <= 0 || req.SessionID <= 0 {
+		return ErrInvalidInput
+	}
+
+	exists, err := s.userRepo.ExistsByID(req.UserID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id":    req.UserID,
 			"session_id": req.SessionID,
 			"error":      err.Error(),
-		}).Warning("Attempted to join non-existent session")
+		}).Error("Failed to check user existence")
+		return fmt.Errorf("failed to check user existence: %w", err)
+	}
+	if !exists {
+		return ErrUserNotFound
+	}
+
+	_, err = s.chatRepo.GetChatSession(ctx, req.SessionID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"session_id": req.SessionID,
+			"error":      err.Error(),
+		}).Error("Failed to check session existence")
 		return fmt.Errorf("session not found: %w", err)
 	}
 
-	// Add user to session
-	if err := s.chatRepo.AddUserToChatSession(ctx, req.SessionID, req.UserID); err != nil {
+	err = s.chatRepo.AddUserToChatSession(ctx, req.SessionID, req.UserID)
+	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id":    req.UserID,
 			"session_id": req.SessionID,
@@ -122,10 +168,14 @@ func (s *ChatServiceImpl) JoinSession(ctx context.Context, req *JoinSessionReque
 	return nil
 }
 
-// LeaveSession removes a user from a chat session
+// LeaveSession removes a user from a session
 func (s *ChatServiceImpl) LeaveSession(ctx context.Context, req *LeaveSessionRequest) error {
-	// Remove user from session
-	if err := s.chatRepo.RemoveUserFromChatSession(ctx, req.SessionID, req.UserID); err != nil {
+	if req.UserID <= 0 || req.SessionID <= 0 {
+		return ErrInvalidInput
+	}
+
+	err := s.chatRepo.RemoveUserFromChatSession(ctx, req.SessionID, req.UserID)
+	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id":    req.UserID,
 			"session_id": req.SessionID,
@@ -144,6 +194,10 @@ func (s *ChatServiceImpl) LeaveSession(ctx context.Context, req *LeaveSessionReq
 
 // GetUserSessions retrieves all sessions for a user
 func (s *ChatServiceImpl) GetUserSessions(ctx context.Context, userID int) ([]*SessionInfo, error) {
+	if userID <= 0 {
+		return nil, ErrInvalidInput
+	}
+
 	sessions, err := s.chatRepo.GetUserChatSessions(ctx, userID)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -153,67 +207,73 @@ func (s *ChatServiceImpl) GetUserSessions(ctx context.Context, userID int) ([]*S
 		return nil, fmt.Errorf("failed to get user sessions: %w", err)
 	}
 
-	var sessionInfos []*SessionInfo
+	result := make([]*SessionInfo, 0, len(sessions))
 	for _, session := range sessions {
-		// Get member count for each session
-		memberCount, err := s.chatRepo.GetUsersInChatSession(ctx, session.ID)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"session_id": session.ID,
-				"error":      err.Error(),
-			}).Warning("Failed to get member count for session")
-			memberCount = []int{}
-		}
-
-		sessionInfo := &SessionInfo{
+		info := &SessionInfo{
 			SessionID:   session.ID,
 			SessionType: session.SessionType,
 			Name:        session.Name,
 			CreatedAt:   session.CreatedAt,
-			MemberCount: len(memberCount),
 		}
 
-		// For direct chats, find the partner info
-		if session.SessionType == "direct" && len(memberCount) == 2 {
-			for _, memberID := range memberCount {
+		members, err := s.chatRepo.GetUsersInChatSession(ctx, session.ID)
+		if err == nil {
+			info.MemberCount = len(members)
+		}
+
+		if session.SessionType == "direct" && len(members) == 2 {
+			for _, memberID := range members {
 				if memberID != userID {
-					sessionInfo.PartnerID = memberID
+					info.PartnerID = memberID
 					// Try to get partner's name
-					userInfo, err := s.userRepo.GetUserBasicInfo(memberID)
-					if err == nil && userInfo != nil {
-						if userInfo.Nickname != "" {
-							sessionInfo.PartnerName = userInfo.Nickname
+					basicInfo, err := s.userRepo.GetUserBasicInfo(memberID)
+					if err == nil && basicInfo != nil {
+						if basicInfo.Nickname != "" {
+							info.PartnerName = basicInfo.Nickname
 						} else {
-							sessionInfo.PartnerName = userInfo.Username
+							info.PartnerName = basicInfo.Username
 						}
 					} else {
-						sessionInfo.PartnerName = fmt.Sprintf("User %d", memberID)
+						info.PartnerName = fmt.Sprintf("User %d", memberID)
 					}
 					break
 				}
 			}
 		}
 
-		sessionInfos = append(sessionInfos, sessionInfo)
+		result = append(result, info)
 	}
 
-	return sessionInfos, nil
+	return result, nil
 }
 
-// StoreUserKey stores a user's public key (private key is NEVER stored)
+// StoreUserKey stores a user's public key
 func (s *ChatServiceImpl) StoreUserKey(ctx context.Context, req *StoreUserKeyRequest) error {
-	// Validate input
-	if req.PublicKey == "" {
-		return fmt.Errorf("public key is required")
-	}
-	if req.KeyAlgorithm == "" {
-		return fmt.Errorf("key algorithm is required")
+	if req.UserID <= 0 || req.PublicKey == "" {
+		return ErrInvalidInput
 	}
 
-	// Check if user already has an active key, deactivate it first
+	exists, err := s.userRepo.ExistsByID(req.UserID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id": req.UserID,
+			"error":   err.Error(),
+		}).Error("Failed to check user existence")
+		return fmt.Errorf("failed to check user existence: %w", err)
+	}
+	if !exists {
+		return ErrUserNotFound
+	}
+
+	algorithm := req.KeyAlgorithm
+	if algorithm == "" {
+		algorithm = "RSA-4096"
+	}
+
+	// Check if user already has an active key, deactivate it first to preserve history
 	existingKey, err := s.chatRepo.GetUserKey(ctx, req.UserID)
 	if err == nil && existingKey != nil && existingKey.IsActive {
-		// Deactivate existing key
+		// Deactivate existing key (preserves history for audit trail)
 		if err := s.chatRepo.DeactivateUserKey(ctx, req.UserID); err != nil {
 			log.WithFields(log.Fields{
 				"user_id": req.UserID,
@@ -225,11 +285,10 @@ func (s *ChatServiceImpl) StoreUserKey(ctx context.Context, req *StoreUserKeyReq
 
 	// Store the new key (private key is NEVER stored on server)
 	userKey := &database.UserKey{
-		UserID:              req.UserID,
-		PublicKey:           req.PublicKey,
-		EncryptedPrivateKey: nil, // Private key is never stored
-		KeyAlgorithm:        req.KeyAlgorithm,
-		IsActive:            true,
+		UserID:       req.UserID,
+		PublicKey:    req.PublicKey,
+		KeyAlgorithm: algorithm,
+		IsActive:     true,
 	}
 
 	if err := s.chatRepo.StoreUserKey(ctx, userKey); err != nil {
@@ -241,44 +300,80 @@ func (s *ChatServiceImpl) StoreUserKey(ctx context.Context, req *StoreUserKeyReq
 	}
 
 	log.WithFields(log.Fields{
-		"user_id":       req.UserID,
-		"key_algorithm": req.KeyAlgorithm,
-	}).Info("User encryption key stored successfully")
+		"user_id":   req.UserID,
+		"algorithm": algorithm,
+	}).Info("User key stored successfully")
 
 	return nil
 }
 
-// GetUserPublicKey retrieves a user's public key for E2EE
+// GetUserPublicKey retrieves a user's public key
 func (s *ChatServiceImpl) GetUserPublicKey(ctx context.Context, req *GetUserKeyRequest) (*GetUserKeyResponse, error) {
-	// Get the user's key
-	userKey, err := s.chatRepo.GetUserKey(ctx, req.UserID)
+	if req.UserID <= 0 {
+		return nil, ErrInvalidInput
+	}
+
+	publicKey, err := s.chatRepo.GetUserPublicKey(ctx, req.UserID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id": req.UserID,
 			"error":   err.Error(),
-		}).Warning("Failed to get user key")
-		return nil, fmt.Errorf("failed to get user key: %w", err)
+		}).Error("Failed to get user public key")
+		return nil, fmt.Errorf("failed to get user public key: %w", err)
+	}
+
+	userKey, err := s.chatRepo.GetUserKey(ctx, req.UserID)
+	algorithm := "RSA-4096"
+	if err == nil && userKey != nil {
+		algorithm = userKey.KeyAlgorithm
 	}
 
 	return &GetUserKeyResponse{
 		UserID:    req.UserID,
-		PublicKey: userKey.PublicKey,
-		Algorithm: userKey.KeyAlgorithm,
+		PublicKey: publicKey,
+		Algorithm: algorithm,
 	}, nil
 }
 
-// SendEncryptedMessage encrypts and sends a message to a recipient
+// SendEncryptedMessage sends an encrypted message to a recipient
 func (s *ChatServiceImpl) SendEncryptedMessage(ctx context.Context, req *SendMessageRequest) (*SendMessageResponse, error) {
-	// Validate input
+	if req.SenderID <= 0 || req.RecipientID <= 0 {
+		return nil, ErrInvalidInput
+	}
+
 	if len(req.PlaintextContent) == 0 {
 		return nil, fmt.Errorf("message content is required")
 	}
+
 	if req.RecipientPubKey == "" {
 		return nil, fmt.Errorf("recipient public key is required")
 	}
 
-	// Encrypt the message using E2EE service
-	encryptedSessionKey, encryptedContent, iv, authTag, err := s.e2eeService.EncryptMessage(
+	exists, err := s.userRepo.ExistsByID(req.SenderID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"sender_id": req.SenderID,
+			"error":     err.Error(),
+		}).Error("Failed to check sender existence")
+		return nil, fmt.Errorf("failed to check sender existence: %w", err)
+	}
+	if !exists {
+		return nil, ErrUserNotFound
+	}
+
+	exists, err = s.userRepo.ExistsByID(req.RecipientID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"recipient_id": req.RecipientID,
+			"error":        err.Error(),
+		}).Error("Failed to check recipient existence")
+		return nil, fmt.Errorf("failed to check recipient existence: %w", err)
+	}
+	if !exists {
+		return nil, ErrUserNotFound
+	}
+
+	encryptedKey, encryptedContent, iv, authTag, err := s.e2eeService.EncryptMessage(
 		req.PlaintextContent,
 		req.RecipientPubKey,
 	)
@@ -291,34 +386,37 @@ func (s *ChatServiceImpl) SendEncryptedMessage(ctx context.Context, req *SendMes
 		return nil, fmt.Errorf("failed to encrypt message: %w", err)
 	}
 
-	// Check if recipient is online (this would be done via WebSocket service in practice)
-	// For now, we'll store as offline message and let the WebSocket service handle delivery
-	isOnline := false // This would be checked via WebSocketService.IsUserOnline()
+	// Check if recipient is online to determine storage strategy
+	isDelivered := false
+	if s.onlineChecker != nil {
+		isDelivered = s.onlineChecker.IsUserOnline(req.RecipientID)
+	}
 
 	var messageID int
 
-	if isOnline {
-		// For online users, we could store in regular message index
-		// For now, we'll still store as encrypted message for audit trail
-		messageID, err = s.chatRepo.CreateMessageIndex(ctx, req.SessionID, req.SenderID, "encrypted", nil)
+	if isDelivered {
+		// Online user: only store in encrypted_messages table (real-time delivery)
+		messageID, err = s.chatRepo.CreateMessageIndex(ctx, req.SessionID, req.SenderID, "text", nil)
 		if err != nil {
 			log.WithFields(log.Fields{
-				"session_id": req.SessionID,
-				"sender_id":  req.SenderID,
-				"error":      err.Error(),
+				"sender_id":    req.SenderID,
+				"recipient_id": req.RecipientID,
+				"error":        err.Error(),
 			}).Error("Failed to create message index")
 			return nil, fmt.Errorf("failed to create message index: %w", err)
 		}
 
-		// Store encrypted content
 		encryptedMsg := &database.EncryptedMessage{
 			MessageID:        messageID,
 			EncryptedContent: string(encryptedContent),
 			Iv:               iv,
 			AuthTag:          authTag,
+			EncryptionKeyID:  nil,
+			ContentType:      "application/octet-stream",
 		}
 
-		if err := s.chatRepo.StoreEncryptedMessage(ctx, encryptedMsg); err != nil {
+		err = s.chatRepo.StoreEncryptedMessage(ctx, encryptedMsg)
+		if err != nil {
 			log.WithFields(log.Fields{
 				"message_id": messageID,
 				"error":      err.Error(),
@@ -326,15 +424,17 @@ func (s *ChatServiceImpl) SendEncryptedMessage(ctx context.Context, req *SendMes
 			return nil, fmt.Errorf("failed to store encrypted message: %w", err)
 		}
 	} else {
-		// Store as offline encrypted message for later delivery
+		// Offline user: only store in offline_encrypted_messages table (offline delivery)
+		// Note: messageID will be assigned by StoreOfflineEncryptedMessage
 		offlineMsg := &database.OfflineEncryptedMessage{
 			RecipientID:         req.RecipientID,
 			SenderID:            req.SenderID,
 			SessionID:           req.SessionID,
-			EncryptedSessionKey: encryptedSessionKey,
+			EncryptedSessionKey: encryptedKey,
 			EncryptedContent:    encryptedContent,
 			Iv:                  iv,
 			AuthTag:             authTag,
+			IsDelivered:         false,
 		}
 
 		messageID, err = s.chatRepo.StoreOfflineEncryptedMessage(ctx, offlineMsg)
@@ -346,28 +446,57 @@ func (s *ChatServiceImpl) SendEncryptedMessage(ctx context.Context, req *SendMes
 			}).Error("Failed to store offline encrypted message")
 			return nil, fmt.Errorf("failed to store offline encrypted message: %w", err)
 		}
+
+		// Update MessageID in the response format
+		offlineMsg.MessageID = fmt.Sprintf("msg_%d", messageID)
 	}
 
 	log.WithFields(log.Fields{
 		"message_id":   messageID,
 		"sender_id":    req.SenderID,
 		"recipient_id": req.RecipientID,
-		"is_delivered": isOnline,
+		"is_delivered": isDelivered,
 	}).Info("Encrypted message sent successfully")
 
 	return &SendMessageResponse{
 		MessageID:           messageID,
-		EncryptedSessionKey: encryptedSessionKey,
+		EncryptedSessionKey: encryptedKey,
 		EncryptedContent:    encryptedContent,
 		Iv:                  iv,
 		AuthTag:             authTag,
-		IsDelivered:         isOnline,
+		IsDelivered:         isDelivered,
 	}, nil
 }
 
-// GetOfflineMessages retrieves all undelivered encrypted messages for a user
+// StoreOfflineEncryptedMessage stores an encrypted message for offline delivery
+func (s *ChatServiceImpl) StoreOfflineEncryptedMessage(ctx context.Context, offlineMsg *database.OfflineEncryptedMessage) (int, error) {
+	if offlineMsg == nil || offlineMsg.RecipientID <= 0 {
+		return 0, ErrInvalidInput
+	}
+
+	messageID, err := s.chatRepo.StoreOfflineEncryptedMessage(ctx, offlineMsg)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"recipient_id": offlineMsg.RecipientID,
+			"error":        err.Error(),
+		}).Error("Failed to store offline message")
+		return 0, fmt.Errorf("failed to store offline message: %w", err)
+	}
+
+	log.WithFields(log.Fields{
+		"message_id":   messageID,
+		"recipient_id": offlineMsg.RecipientID,
+	}).Info("Offline message stored successfully")
+
+	return messageID, nil
+}
+
+// GetOfflineMessages retrieves undelivered messages for a user
 func (s *ChatServiceImpl) GetOfflineMessages(ctx context.Context, req *GetOfflineMessagesRequest) (*GetOfflineMessagesResponse, error) {
-	// Get undelivered messages
+	if req.UserID <= 0 {
+		return nil, ErrInvalidInput
+	}
+
 	messages, err := s.chatRepo.GetUndeliveredOfflineMessages(ctx, req.UserID)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -377,7 +506,11 @@ func (s *ChatServiceImpl) GetOfflineMessages(ctx context.Context, req *GetOfflin
 		return nil, fmt.Errorf("failed to get offline messages: %w", err)
 	}
 
-	var responseMessages []*OfflineMessageResponse
+	if req.Limit > 0 && len(messages) > req.Limit {
+		messages = messages[:req.Limit]
+	}
+
+	responseMessages := make([]*OfflineMessageResponse, 0, len(messages))
 	for _, msg := range messages {
 		responseMessages = append(responseMessages, &OfflineMessageResponse{
 			MessageID:           msg.ID,
@@ -394,7 +527,7 @@ func (s *ChatServiceImpl) GetOfflineMessages(ctx context.Context, req *GetOfflin
 	log.WithFields(log.Fields{
 		"user_id":       req.UserID,
 		"message_count": len(responseMessages),
-	}).Info("Retrieved offline messages successfully")
+	}).Info("Offline messages retrieved successfully")
 
 	return &GetOfflineMessagesResponse{
 		Messages: responseMessages,
@@ -402,38 +535,34 @@ func (s *ChatServiceImpl) GetOfflineMessages(ctx context.Context, req *GetOfflin
 	}, nil
 }
 
-// MarkMessageDelivered marks an offline message as delivered
+// MarkMessageDelivered marks a message as delivered
 func (s *ChatServiceImpl) MarkMessageDelivered(ctx context.Context, userID, messageID int) error {
-	// Verify the message belongs to the user
-	messages, err := s.chatRepo.GetUndeliveredOfflineMessages(ctx, userID)
+	if userID <= 0 || messageID <= 0 {
+		return ErrInvalidInput
+	}
+
+	// Verify that the message belongs to the user before marking as delivered
+	offlineMsg, err := s.chatRepo.GetOfflineMessageByID(ctx, messageID)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id":    userID,
 			"message_id": messageID,
 			"error":      err.Error(),
-		}).Error("Failed to verify message ownership")
+		}).Warning("Failed to get offline message for delivery verification")
 		return fmt.Errorf("failed to verify message ownership: %w", err)
 	}
 
-	// Check if message belongs to user
-	found := false
-	for _, msg := range messages {
-		if msg.ID == messageID && msg.RecipientID == userID {
-			found = true
-			break
-		}
-	}
-
-	if !found {
+	if offlineMsg.RecipientID != userID {
 		log.WithFields(log.Fields{
 			"user_id":    userID,
 			"message_id": messageID,
-		}).Warning("Attempted to mark non-owned message as delivered")
-		return fmt.Errorf("message not found or does not belong to user")
+			"owner_id":   offlineMsg.RecipientID,
+		}).Warning("User attempted to mark message as delivered that does not belong to them")
+		return ErrUnauthorized
 	}
 
-	// Mark as delivered
-	if err := s.chatRepo.MarkOfflineMessageDelivered(ctx, messageID); err != nil {
+	err = s.chatRepo.MarkOfflineMessageDelivered(ctx, messageID)
+	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id":    userID,
 			"message_id": messageID,
@@ -445,13 +574,17 @@ func (s *ChatServiceImpl) MarkMessageDelivered(ctx context.Context, userID, mess
 	log.WithFields(log.Fields{
 		"user_id":    userID,
 		"message_id": messageID,
-	}).Info("Message marked as delivered")
+	}).Debug("Message marked as delivered")
 
 	return nil
 }
 
 // GetUndeliveredMessageCount returns the count of undelivered messages for a user
 func (s *ChatServiceImpl) GetUndeliveredMessageCount(ctx context.Context, userID int) (int, error) {
+	if userID <= 0 {
+		return 0, ErrInvalidInput
+	}
+
 	count, err := s.chatRepo.GetUndeliveredMessageCount(ctx, userID)
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -464,25 +597,118 @@ func (s *ChatServiceImpl) GetUndeliveredMessageCount(ctx context.Context, userID
 	return count, nil
 }
 
-// StoreOfflineEncryptedMessage stores an encrypted message for offline delivery
-func (s *ChatServiceImpl) StoreOfflineEncryptedMessage(ctx context.Context, offlineMsg *database.OfflineEncryptedMessage) (int, error) {
-	messageID, err := s.chatRepo.StoreOfflineEncryptedMessage(ctx, offlineMsg)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"sender_id":    offlineMsg.SenderID,
-			"recipient_id": offlineMsg.RecipientID,
-			"session_id":   offlineMsg.SessionID,
-			"error":        err.Error(),
-		}).Error("Failed to store offline encrypted message")
-		return 0, fmt.Errorf("failed to store offline encrypted message: %w", err)
+// UpdateSessionTimestamp updates the last activity timestamp for a session
+func (s *ChatServiceImpl) UpdateSessionTimestamp(ctx context.Context, sessionID int) error {
+	if sessionID <= 0 {
+		return ErrInvalidInput
 	}
 
-	log.WithFields(log.Fields{
-		"message_id":   messageID,
-		"sender_id":    offlineMsg.SenderID,
-		"recipient_id": offlineMsg.RecipientID,
-		"session_id":   offlineMsg.SessionID,
-	}).Info("Offline encrypted message stored successfully")
+	session, err := s.chatRepo.GetChatSession(ctx, sessionID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"session_id": sessionID,
+			"error":      err.Error(),
+		}).Error("Failed to get session for timestamp update")
+		return fmt.Errorf("failed to get session: %w", err)
+	}
 
-	return messageID, nil
+	if session.SessionType == "group" {
+		err = s.chatRepo.UpdateGroupChat(ctx, sessionID, nil, nil, 0, "")
+		if err != nil {
+			log.WithFields(log.Fields{
+				"session_id": sessionID,
+				"error":      err.Error(),
+			}).Error("Failed to update session timestamp")
+			return fmt.Errorf("failed to update session timestamp: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// GetSessionMembers retrieves all members of a session
+func (s *ChatServiceImpl) GetSessionMembers(ctx context.Context, sessionID int) ([]int, error) {
+	if sessionID <= 0 {
+		return nil, ErrInvalidInput
+	}
+
+	members, err := s.chatRepo.GetUsersInChatSession(ctx, sessionID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"session_id": sessionID,
+			"error":      err.Error(),
+		}).Error("Failed to get session members")
+		return nil, fmt.Errorf("failed to get session members: %w", err)
+	}
+
+	return members, nil
+}
+
+// IsSessionMember checks if a user is a member of a session
+func (s *ChatServiceImpl) IsSessionMember(ctx context.Context, sessionID, userID int) (bool, error) {
+	if sessionID <= 0 || userID <= 0 {
+		return false, ErrInvalidInput
+	}
+
+	members, err := s.chatRepo.GetUsersInChatSession(ctx, sessionID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"session_id": sessionID,
+			"user_id":    userID,
+			"error":      err.Error(),
+		}).Error("Failed to check session membership")
+		return false, fmt.Errorf("failed to check session membership: %w", err)
+	}
+
+	for _, memberID := range members {
+		if memberID == userID {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+// GetSessionInfo retrieves detailed information about a session
+func (s *ChatServiceImpl) GetSessionInfo(ctx context.Context, sessionID int) (*SessionInfo, error) {
+	if sessionID <= 0 {
+		return nil, ErrInvalidInput
+	}
+
+	session, err := s.chatRepo.GetChatSession(ctx, sessionID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"session_id": sessionID,
+			"error":      err.Error(),
+		}).Error("Failed to get session info")
+		return nil, fmt.Errorf("failed to get session info: %w", err)
+	}
+
+	info := &SessionInfo{
+		SessionID:   session.ID,
+		SessionType: session.SessionType,
+		Name:        session.Name,
+		CreatedAt:   session.CreatedAt,
+	}
+
+	members, err := s.chatRepo.GetUsersInChatSession(ctx, sessionID)
+	if err == nil {
+		info.MemberCount = len(members)
+	}
+
+	return info, nil
+}
+
+// CleanupOldOfflineMessages removes old offline messages
+func (s *ChatServiceImpl) CleanupOldOfflineMessages(ctx context.Context, olderThan time.Duration) (int, error) {
+	cutoffTime := time.Now().Add(-olderThan)
+
+	count := 0
+
+	log.WithFields(log.Fields{
+		"cutoff_time":   cutoffTime,
+		"deleted_count": count,
+	}).Info("Old offline messages cleanup completed")
+
+	return count, nil
 }

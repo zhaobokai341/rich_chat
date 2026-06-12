@@ -1,6 +1,7 @@
 package database
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -13,814 +14,551 @@ import (
 func TestCachedUserRepository_CreateUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name          string
-		username      string
-		passwordHash  string
-		expectedID    int
-		expectedError error
-		setupMocks    func()
-	}{
-		{
-			name:          "successful user creation",
-			username:      "testuser",
-			passwordHash:  "$2a$10$hashedpassword",
-			expectedID:    1,
-			expectedError: nil,
-			setupMocks: func() {
-				mockRepo.On("CreateUser", "testuser", "$2a$10$hashedpassword").Return(1, nil)
-				mockCache.On("Delete", "user:exists:1").Once()
-				mockCache.On("Delete", "user:id:username:testuser").Once()
-				mockCache.On("Set", "user:hash:1", "$2a$10$hashedpassword").Once()
-			},
-		},
-		{
-			name:          "creation failure",
-			username:      "duplicateuser",
-			passwordHash:  "$2a$10$hashedpassword",
-			expectedID:    0,
-			expectedError: errors.New("duplicate key"),
-			setupMocks: func() {
-				mockRepo.On("CreateUser", "duplicateuser", "$2a$10$hashedpassword").Return(0, errors.New("duplicate key"))
-			},
-		},
-	}
+	t.Run("successful user creation", func(t *testing.T) {
+		mockRepo.On("CreateUser", "testuser", "$2a$10$hashedpassword").Return(1, nil)
+		mockCache.On("Delete", "user:exists:1").Once()
+		mockCache.On("Delete", "user:id:username:testuser").Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		id, err := cachedRepo.CreateUser("testuser", "$2a$10$hashedpassword")
 
-			id, err := cachedRepo.CreateUser(tt.username, tt.passwordHash)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, id)
+		mockRepo.AssertExpectations(t)
+		mockCache.AssertExpectations(t)
+	})
 
-			assert.Equal(t, tt.expectedID, id)
-			if tt.expectedError != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	t.Run("creation failure", func(t *testing.T) {
+		mockRepo.On("CreateUser", "duplicateuser", "$2a$10$hashedpassword").Return(0, errors.New("duplicate key"))
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		id, err := cachedRepo.CreateUser("duplicateuser", "$2a$10$hashedpassword")
+
+		assert.Error(t, err)
+		assert.Equal(t, 0, id)
+		mockRepo.AssertExpectations(t)
+	})
 }
 
 // TestCachedUserRepository_FindByID tests the FindByID method
 func TestCachedUserRepository_FindByID(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name          string
-		userID        int
-		expectedUser  *User
-		expectedError error
-		setupMocks    func()
-	}{
-		{
-			name:   "user found in cache",
-			userID: 1,
-			expectedUser: &User{
-				ID:       1,
-				Username: "cacheduser",
-			},
-			expectedError: nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:1").Return("true", true)
-				mockRepo.On("FindByID", 1).Return(&User{
-					ID:       1,
-					Username: "cacheduser",
-				}, nil)
-				mockCache.On("Set", "user:exists:1", "true").Once()
-			},
-		},
-		{
-			name:          "user not found - cached negative result",
-			userID:        999,
-			expectedUser:  nil,
-			expectedError: errors.New("user not found"),
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:999").Return("false", true)
-			},
-		},
-		{
-			name:   "user found in database - cache miss",
-			userID: 2,
-			expectedUser: &User{
-				ID:       2,
-				Username: "dbuser",
-			},
-			expectedError: nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:2").Return("", false)
-				mockRepo.On("FindByID", 2).Return(&User{
-					ID:       2,
-					Username: "dbuser",
-				}, nil)
-				mockCache.On("Set", "user:exists:2", "true").Once()
-			},
-		},
-		{
-			name:          "database error",
-			userID:        3,
-			expectedUser:  nil,
-			expectedError: errors.New("database error"),
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:3").Return("", false)
-				mockRepo.On("FindByID", 3).Return(nil, errors.New("database error"))
-				mockCache.On("Set", "user:exists:3", "false").Once()
-			},
-		},
-	}
+	t.Run("user found in cache", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:1").Return("true", true)
+		mockRepo.On("FindByID", 1).Return(&User{
+			ID:       1,
+			Username: "cacheduser",
+		}, nil)
+		mockCache.On("SetWithTTL", "user:exists:1", "true", 300).Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		user, err := cachedRepo.FindByID(1)
 
-			user, err := cachedRepo.FindByID(tt.userID)
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, 1, user.ID)
+		mockRepo.AssertExpectations(t)
+	})
 
-			if tt.expectedUser != nil {
-				assert.NotNil(t, user)
-				assert.Equal(t, tt.expectedUser.ID, user.ID)
-				assert.Equal(t, tt.expectedUser.Username, user.Username)
-			} else {
-				assert.Nil(t, user)
-			}
+	t.Run("user not found - cached negative result", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:999").Return("false", true)
 
-			if tt.expectedError != nil {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+		user, err := cachedRepo.FindByID(999)
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		assert.Error(t, err)
+		assert.Nil(t, user)
+	})
+
+	t.Run("user found in database - cache miss", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:2").Return("", false)
+		mockRepo.On("FindByID", 2).Return(&User{
+			ID:       2,
+			Username: "dbuser",
+		}, nil)
+		mockCache.On("SetWithTTL", "user:exists:2", "true", 300).Once()
+
+		user, err := cachedRepo.FindByID(2)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, 2, user.ID)
+	})
+
+	t.Run("database error", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:3").Return("", false)
+		mockRepo.On("FindByID", 3).Return(nil, errors.New("database error"))
+		mockCache.On("SetWithTTL", "user:exists:3", "false", 300).Once()
+
+		user, err := cachedRepo.FindByID(3)
+
+		assert.Error(t, err)
+		assert.Nil(t, user)
+	})
 }
 
 // TestCachedUserRepository_FindByUsername tests the FindByUsername method
 func TestCachedUserRepository_FindByUsername(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name          string
-		username      string
-		expectedUser  *User
-		expectedError error
-		setupMocks    func()
-	}{
-		{
-			name:     "user found - cache hit",
-			username: "testuser",
-			expectedUser: &User{
-				ID:           1,
-				Username:     "testuser",
-				PasswordHash: "$2a$10$hash",
-			},
-			expectedError: nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:id:username:testuser").Return("1", true)
-				mockRepo.On("FindByUsername", "testuser").Return(&User{
-					ID:           1,
-					Username:     "testuser",
-					PasswordHash: "$2a$10$hash",
-				}, nil)
-				mockCache.On("Set", "user:id:username:testuser", "1").Once()
-				mockCache.On("Set", "user:hash:1", "$2a$10$hash").Once()
-			},
-		},
-		{
-			name:          "user not found - cached",
-			username:      "nonexistent",
-			expectedUser:  nil,
-			expectedError: errors.New("user not found"),
-			setupMocks: func() {
-				mockCache.On("Get", "user:id:username:nonexistent").Return("", false)
-				mockRepo.On("FindByUsername", "nonexistent").Return(nil, errors.New("user not found"))
-				mockCache.On("SetNull", "user:id:username:nonexistent").Once()
-			},
-		},
-		{
-			name:     "user found - cache miss",
-			username: "anotheruser",
-			expectedUser: &User{
-				ID:           2,
-				Username:     "anotheruser",
-				PasswordHash: "$2a$10$anotherhash",
-			},
-			expectedError: nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:id:username:anotheruser").Return("", false)
-				mockRepo.On("FindByUsername", "anotheruser").Return(&User{
-					ID:           2,
-					Username:     "anotheruser",
-					PasswordHash: "$2a$10$anotherhash",
-				}, nil)
-				mockCache.On("Set", "user:id:username:anotheruser", "2").Once()
-				mockCache.On("Set", "user:hash:2", "$2a$10$anotherhash").Once()
-			},
-		},
-	}
+	t.Run("user found - cache hit", func(t *testing.T) {
+		mockCache.On("Get", "user:id:username:testuser").Return("1", true)
+		mockRepo.On("FindByUsername", "testuser").Return(&User{
+			ID:           1,
+			Username:     "testuser",
+			PasswordHash: "$2a$10$hash",
+		}, nil)
+		mockCache.On("SetWithTTL", "user:id:username:testuser", "1", 300).Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		user, err := cachedRepo.FindByUsername("testuser")
 
-			user, err := cachedRepo.FindByUsername(tt.username)
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, 1, user.ID)
+	})
 
-			if tt.expectedUser != nil {
-				assert.NotNil(t, user)
-				assert.Equal(t, tt.expectedUser.ID, user.ID)
-				assert.Equal(t, tt.expectedUser.Username, user.Username)
-				assert.Equal(t, tt.expectedUser.PasswordHash, user.PasswordHash)
-			} else {
-				assert.Nil(t, user)
-			}
+	t.Run("user not found - cached", func(t *testing.T) {
+		mockCache.On("Get", "user:id:username:nonexistent").Return("", false)
+		mockRepo.On("FindByUsername", "nonexistent").Return(nil, errors.New("user not found"))
+		mockCache.On("SetNull", "user:id:username:nonexistent").Once()
+		mockCache.On("SetExpiration", "user:id:username:nonexistent", time.Duration(60)*time.Second).Once()
 
-			if tt.expectedError != nil {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+		user, err := cachedRepo.FindByUsername("nonexistent")
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		assert.Error(t, err)
+		assert.Nil(t, user)
+	})
 }
 
 // TestCachedUserRepository_ExistsByID tests the ExistsByID method
 func TestCachedUserRepository_ExistsByID(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name         string
-		userID       int
-		expectedBool bool
-		expectedErr  error
-		setupMocks   func()
-	}{
-		{
-			name:         "user exists - cached positive",
-			userID:       1,
-			expectedBool: true,
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:1").Return("true", true)
-			},
-		},
-		{
-			name:         "user does not exist - cached negative",
-			userID:       2,
-			expectedBool: false,
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:2").Return("false", true)
-			},
-		},
-		{
-			name:         "cache miss - user exists in DB",
-			userID:       3,
-			expectedBool: true,
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:3").Return("", false)
-				mockRepo.On("ExistsByID", 3).Return(true, nil)
-				mockCache.On("Set", "user:exists:3", "true").Once()
-			},
-		},
-		{
-			name:         "cache miss - user does not exist in DB",
-			userID:       4,
-			expectedBool: false,
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:4").Return("", false)
-				mockRepo.On("ExistsByID", 4).Return(false, nil)
-				mockCache.On("Set", "user:exists:4", "false").Once()
-			},
-		},
-		{
-			name:         "error case",
-			userID:       5,
-			expectedBool: false,
-			expectedErr:  errors.New("database error"),
-			setupMocks: func() {
-				mockCache.On("Get", "user:exists:5").Return("", false)
-				mockRepo.On("ExistsByID", 5).Return(false, errors.New("database error"))
-			},
-		},
-	}
+	t.Run("user exists - cached positive", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:1").Return("true", true)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		exists, err := cachedRepo.ExistsByID(1)
 
-			exists, err := cachedRepo.ExistsByID(tt.userID)
+		assert.NoError(t, err)
+		assert.True(t, exists)
+	})
 
-			assert.Equal(t, tt.expectedBool, exists)
+	t.Run("user does not exist - cached negative", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:2").Return("false", true)
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+		exists, err := cachedRepo.ExistsByID(2)
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		assert.NoError(t, err)
+		assert.False(t, exists)
+	})
+
+	t.Run("cache miss - user exists in DB", func(t *testing.T) {
+		mockCache.On("Get", "user:exists:3").Return("", false)
+		mockRepo.On("ExistsByID", 3).Return(true, nil)
+		mockCache.On("SetWithTTL", "user:exists:3", "true", 300).Once()
+
+		exists, err := cachedRepo.ExistsByID(3)
+
+		assert.NoError(t, err)
+		assert.True(t, exists)
+	})
 }
 
 // TestCachedUserRepository_GetUserProfile tests the GetUserProfile method
 func TestCachedUserRepository_GetUserProfile(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name         string
-		userID       int
-		expectedUser *UserInfo
-		expectedErr  error
-		setupMocks   func()
-	}{
-		{
-			name:   "profile found in cache",
-			userID: 1,
-			expectedUser: &UserInfo{
-				Username: "testuser",
-				Email:    "test@example.com",
-				Nickname: "Test User",
-				Bio:      "Test bio",
-			},
-			expectedErr: nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:info:1").Return(`{"Username":"testuser","Email":"test@example.com","Nickname":"Test User","Bio":"Test bio"}`, true)
-			},
-		},
-		{
-			name:         "profile not found in cache - fetch from DB",
-			userID:       2,
-			expectedUser: nil,
-			expectedErr:  errors.New("profile not found"),
-			setupMocks: func() {
-				mockCache.On("Get", "user:info:2").Return("", false)
-				mockRepo.On("GetUserProfile", 2).Return(nil, errors.New("profile not found"))
-				mockCache.On("SetNull", "user:info:2").Once()
-			},
-		},
-		{
-			name:   "profile found in DB - cache miss",
-			userID: 3,
-			expectedUser: &UserInfo{
-				Username: "anotheruser",
-				Email:    "another@example.com",
-				Nickname: "Another User",
-				Bio:      "Another bio",
-			},
-			expectedErr: nil,
-			setupMocks: func() {
-				mockCache.On("Get", "user:info:3").Return("", false)
-				mockRepo.On("GetUserProfile", 3).Return(&UserInfo{
-					Username: "anotheruser",
-					Email:    "another@example.com",
-					Nickname: "Another User",
-					Bio:      "Another bio",
-				}, nil)
-				mockCache.On("Set", "user:info:3", mock.AnythingOfType("string")).Once()
-			},
-		},
-	}
+	t.Run("profile found in cache", func(t *testing.T) {
+		mockCache.On("Get", "user:info:1").Return(`{"Username":"testuser","Email":"test@example.com","Nickname":"Test User","Bio":"Test bio"}`, true)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		profile, err := cachedRepo.GetUserProfile(1)
 
-			profile, err := cachedRepo.GetUserProfile(tt.userID)
+		assert.NoError(t, err)
+		assert.NotNil(t, profile)
+		assert.Equal(t, "testuser", profile.Username)
+	})
 
-			if tt.expectedUser != nil {
-				assert.NotNil(t, profile)
-				assert.Equal(t, tt.expectedUser.Username, profile.Username)
-				assert.Equal(t, tt.expectedUser.Email, profile.Email)
-				assert.Equal(t, tt.expectedUser.Nickname, profile.Nickname)
-				assert.Equal(t, tt.expectedUser.Bio, profile.Bio)
-			} else {
-				assert.Nil(t, profile)
-			}
+	t.Run("profile not found in cache - fetch from DB", func(t *testing.T) {
+		mockCache.On("Get", "user:info:2").Return("", false)
+		mockRepo.On("GetUserProfile", 2).Return(nil, errors.New("profile not found"))
+		mockCache.On("SetNull", "user:info:2").Once()
+		mockCache.On("SetExpiration", "user:info:2", time.Duration(60)*time.Second).Once()
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-			} else {
-				assert.NoError(t, err)
-			}
+		profile, err := cachedRepo.GetUserProfile(2)
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		assert.Error(t, err)
+		assert.Nil(t, profile)
+	})
 }
 
 // TestCachedUserRepository_UpdateProfile tests the UpdateProfile method
 func TestCachedUserRepository_UpdateProfile(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name        string
-		userID      int
-		key         string
-		value       string
-		expectedErr error
-		setupMocks  func()
-	}{
-		{
-			name:        "successful profile update",
-			userID:      1,
-			key:         "email",
-			value:       "updated@example.com",
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("UpdateProfile", 1, "email", "updated@example.com").Return(nil)
-				mockCache.On("Delete", "user:info:1").Once()
-			},
-		},
-		{
-			name:        "update fails",
-			userID:      2,
-			key:         "nickname",
-			value:       "Invalid Name",
-			expectedErr: errors.New("update failed"),
-			setupMocks: func() {
-				mockRepo.On("UpdateProfile", 2, "nickname", "Invalid Name").Return(errors.New("update failed"))
-			},
-		},
-	}
+	t.Run("successful profile update", func(t *testing.T) {
+		mockRepo.On("UpdateProfile", 1, "email", "updated@example.com").Return(nil)
+		mockCache.On("Delete", "user:info:1").Once()
+		mockCache.On("Delete", "user:basic:1").Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		err := cachedRepo.UpdateProfile(1, "email", "updated@example.com")
 
-			err := cachedRepo.UpdateProfile(tt.userID, tt.key, tt.value)
+		assert.NoError(t, err)
+		mockRepo.AssertExpectations(t)
+		mockCache.AssertExpectations(t)
+	})
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	t.Run("update fails", func(t *testing.T) {
+		mockRepo.On("UpdateProfile", 2, "nickname", "Invalid Name").Return(errors.New("update failed"))
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		err := cachedRepo.UpdateProfile(2, "nickname", "Invalid Name")
+
+		assert.Error(t, err)
+	})
 }
 
 // TestCachedUserRepository_UpdatePassword tests the UpdatePassword method
 func TestCachedUserRepository_UpdatePassword(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name        string
-		userID      int
-		newPassword string
-		expectedErr error
-		setupMocks  func()
-	}{
-		{
-			name:        "successful password update",
-			userID:      1,
-			newPassword: "$2a$10$newhash",
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("UpdatePassword", 1, "$2a$10$newhash").Return(nil)
-				mockCache.On("Delete", "user:hash:1").Once()
-			},
-		},
-		{
-			name:        "password update fails",
-			userID:      2,
-			newPassword: "$2a$10$badhash",
-			expectedErr: errors.New("password update failed"),
-			setupMocks: func() {
-				mockRepo.On("UpdatePassword", 2, "$2a$10$badhash").Return(errors.New("password update failed"))
-			},
-		},
-	}
+	t.Run("successful password update", func(t *testing.T) {
+		mockRepo.On("UpdatePassword", 1, "$2a$10$newhash").Return(nil)
+		mockCache.On("Delete", "user:info:1").Once()
+		mockCache.On("Delete", "user:basic:1").Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		err := cachedRepo.UpdatePassword(1, "$2a$10$newhash")
 
-			err := cachedRepo.UpdatePassword(tt.userID, tt.newPassword)
+		assert.NoError(t, err)
+	})
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	t.Run("password update fails", func(t *testing.T) {
+		mockRepo.On("UpdatePassword", 2, "$2a$10$badhash").Return(errors.New("password update failed"))
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		err := cachedRepo.UpdatePassword(2, "$2a$10$badhash")
+
+		assert.Error(t, err)
+	})
 }
 
 // TestCachedUserRepository_UpdateLastLogin tests the UpdateLastLogin method
 func TestCachedUserRepository_UpdateLastLogin(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name        string
-		userID      int
-		expectedErr error
-		setupMocks  func()
-	}{
-		{
-			name:        "successful last login update",
-			userID:      1,
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("UpdateLastLogin", 1).Return(nil)
-			},
-		},
-		{
-			name:        "last login update fails",
-			userID:      2,
-			expectedErr: errors.New("update failed"),
-			setupMocks: func() {
-				mockRepo.On("UpdateLastLogin", 2).Return(errors.New("update failed"))
-			},
-		},
-	}
+	t.Run("successful last login update", func(t *testing.T) {
+		mockRepo.On("UpdateLastLogin", 1).Return(nil)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		err := cachedRepo.UpdateLastLogin(1)
 
-			err := cachedRepo.UpdateLastLogin(tt.userID)
+		assert.NoError(t, err)
+	})
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	t.Run("last login update fails", func(t *testing.T) {
+		mockRepo.On("UpdateLastLogin", 2).Return(errors.New("update failed"))
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		err := cachedRepo.UpdateLastLogin(2)
+
+		assert.Error(t, err)
+	})
 }
 
 // TestCachedUserRepository_UpdateLockStatus tests the UpdateLockStatus method
 func TestCachedUserRepository_UpdateLockStatus(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name        string
-		identifier  string
-		lockUntil   *time.Time
-		expectedErr error
-		setupMocks  func()
-	}{
-		{
-			name:        "lock user account",
-			identifier:  "user1",
-			lockUntil:   &time.Time{},
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("UpdateLockStatus", "user1", mock.AnythingOfType("*time.Time")).Return(nil)
-			},
-		},
-		{
-			name:        "unlock user account",
-			identifier:  "user2",
-			lockUntil:   nil,
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("UpdateLockStatus", "user2", (*time.Time)(nil)).Return(nil)
-			},
-		},
-	}
+	t.Run("lock user account", func(t *testing.T) {
+		mockRepo.On("UpdateLockStatus", "user1", mock.AnythingOfType("*time.Time")).Return(nil)
+		mockCache.On("Delete", "login_lockout:user1").Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		err := cachedRepo.UpdateLockStatus("user1", &time.Time{})
 
-			err := cachedRepo.UpdateLockStatus(tt.identifier, tt.lockUntil)
+		assert.NoError(t, err)
+	})
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	t.Run("unlock user account", func(t *testing.T) {
+		mockRepo.On("UpdateLockStatus", "user2", (*time.Time)(nil)).Return(nil)
+		mockCache.On("Delete", "login_lockout:user2").Once()
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		err := cachedRepo.UpdateLockStatus("user2", nil)
+
+		assert.NoError(t, err)
+	})
 }
 
 // TestCachedUserRepository_GetLockStatus tests the GetLockStatus method
 func TestCachedUserRepository_GetLockStatus(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name         string
-		identifier   string
-		expectedTime *time.Time
-		expectedErr  error
-		setupMocks   func()
-	}{
-		{
-			name:         "user lock status exists",
-			identifier:   "user1",
-			expectedTime: &time.Time{},
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockRepo.On("GetLockStatus", "user1").Return(&time.Time{}, nil)
-			},
-		},
-		{
-			name:         "user has no lock",
-			identifier:   "user2",
-			expectedTime: nil,
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockRepo.On("GetLockStatus", "user2").Return((*time.Time)(nil), nil)
-			},
-		},
-		{
-			name:         "lock status found in DB",
-			identifier:   "user3",
-			expectedTime: &time.Time{},
-			expectedErr:  nil,
-			setupMocks: func() {
-				mockRepo.On("GetLockStatus", "user3").Return(&time.Time{}, nil)
-			},
-		},
-		{
-			name:         "DB error",
-			identifier:   "user4",
-			expectedTime: nil,
-			expectedErr:  errors.New("DB error"),
-			setupMocks: func() {
-				mockRepo.On("GetLockStatus", "user4").Return((*time.Time)(nil), errors.New("DB error"))
-			},
-		},
-	}
+	t.Run("user lock status exists", func(t *testing.T) {
+		mockRepo.On("GetLockStatus", "user1").Return(&time.Time{}, nil)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		timeResult, err := cachedRepo.GetLockStatus("user1")
 
-			timeResult, err := cachedRepo.GetLockStatus(tt.identifier)
+		assert.NoError(t, err)
+		assert.NotNil(t, timeResult)
+	})
 
-			if tt.expectedTime != nil && timeResult != nil {
-				assert.Equal(t, tt.expectedTime.String(), timeResult.String()) // Compare string representations
-			} else {
-				assert.Equal(t, tt.expectedTime, timeResult)
-			}
+	t.Run("user has no lock", func(t *testing.T) {
+		mockRepo.On("GetLockStatus", "user2").Return((*time.Time)(nil), nil)
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+		timeResult, err := cachedRepo.GetLockStatus("user2")
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		assert.NoError(t, err)
+		assert.Nil(t, timeResult)
+	})
 }
 
 // TestCachedUserRepository_ClearExpiredLock tests the ClearExpiredLock method
 func TestCachedUserRepository_ClearExpiredLock(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name        string
-		identifier  string
-		expectedErr error
-		setupMocks  func()
-	}{
-		{
-			name:        "successful expired lock clear",
-			identifier:  "user1",
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("ClearExpiredLock", "user1").Return(nil)
-			},
-		},
-		{
-			name:        "failed to clear expired lock",
-			identifier:  "user2",
-			expectedErr: errors.New("clear failed"),
-			setupMocks: func() {
-				mockRepo.On("ClearExpiredLock", "user2").Return(errors.New("clear failed"))
-			},
-		},
-	}
+	t.Run("successful expired lock clear", func(t *testing.T) {
+		mockRepo.On("ClearExpiredLock", "user1").Return(nil)
+		mockCache.On("Delete", "login_lockout:user1").Once()
+		mockCache.On("Delete", "login_attempts:user1").Once()
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+		err := cachedRepo.ClearExpiredLock("user1")
 
-			err := cachedRepo.ClearExpiredLock(tt.identifier)
+		assert.NoError(t, err)
+	})
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	t.Run("failed to clear expired lock", func(t *testing.T) {
+		mockRepo.On("ClearExpiredLock", "user2").Return(errors.New("clear failed"))
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
-	}
+		err := cachedRepo.ClearExpiredLock("user2")
+
+		assert.Error(t, err)
+	})
 }
 
 // TestCachedUserRepository_DeleteUser tests the DeleteUser method
 func TestCachedUserRepository_DeleteUser(t *testing.T) {
 	mockRepo := new(MockUserRepository)
 	mockCache := new(MockCacheService)
-	cachedRepo := NewCachedUserRepository(mockRepo, mockCache)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
 
-	tests := []struct {
-		name        string
-		userID      int
-		expectedErr error
-		setupMocks  func()
-	}{
-		{
-			name:        "successful user deletion",
-			userID:      1,
-			expectedErr: nil,
-			setupMocks: func() {
-				mockRepo.On("FindByID", 1).Return(&User{ID: 1, Username: "testuser"}, nil)
-				mockRepo.On("DeleteUser", 1).Return(nil)
-				mockCache.On("Delete", "user:exists:1").Once()
-				mockCache.On("Delete", "user:id:username:testuser").Once()
-				mockCache.On("Delete", "user:hash:1").Once()
-				mockCache.On("Delete", "user:info:1").Once()
-			},
-		},
-		{
-			name:        "delete user fails",
-			userID:      2,
-			expectedErr: errors.New("delete failed"),
-			setupMocks: func() {
-				mockRepo.On("FindByID", 2).Return(&User{ID: 2, Username: "user2"}, nil)
-				mockCache.On("Delete", "user:exists:2").Once()
-				mockCache.On("Delete", "user:id:username:user2").Once()
-				mockCache.On("Delete", "user:hash:2").Once()
-				mockCache.On("Delete", "user:info:2").Once()
-				mockRepo.On("DeleteUser", 2).Return(errors.New("delete failed"))
-			},
-		},
+	t.Run("successful user deletion", func(t *testing.T) {
+		mockRepo.On("FindByID", 1).Return(&User{ID: 1, Username: "testuser"}, nil)
+		mockRepo.On("DeleteUser", 1).Return(nil)
+		mockCache.On("Delete", "user:exists:1").Once()
+		mockCache.On("Delete", "user:id:username:testuser").Once()
+		mockCache.On("Delete", "user:info:1").Once()
+		mockCache.On("Delete", "user:basic:1").Once()
+
+		err := cachedRepo.DeleteUser(1)
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("deletion fails", func(t *testing.T) {
+		mockRepo.On("FindByID", 2).Return(&User{ID: 2, Username: "testuser2"}, nil)
+		mockRepo.On("DeleteUser", 2).Return(errors.New("delete failed"))
+		mockCache.On("Delete", "user:exists:2").Once()
+		mockCache.On("Delete", "user:id:username:testuser2").Once()
+		mockCache.On("Delete", "user:info:2").Once()
+		mockCache.On("Delete", "user:basic:2").Once()
+
+		err := cachedRepo.DeleteUser(2)
+
+		assert.Error(t, err)
+	})
+}
+
+// TestCachedUserRepository_GetUserBasicInfo tests the GetUserBasicInfo method
+func TestCachedUserRepository_GetUserBasicInfo(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
+
+	t.Run("basic info found in cache", func(t *testing.T) {
+		mockCache.On("Get", "user:basic:1").Return(`{"ID":1,"Username":"testuser","Nickname":"Test User"}`, true)
+
+		basicInfo, err := cachedRepo.GetUserBasicInfo(1)
+
+		assert.NoError(t, err)
+		assert.NotNil(t, basicInfo)
+		assert.Equal(t, "testuser", basicInfo.Username)
+	})
+
+	t.Run("basic info not found in cache - fetch from DB", func(t *testing.T) {
+		mockCache.On("Get", "user:basic:2").Return("", false)
+		mockRepo.On("GetUserBasicInfo", 2).Return(nil, errors.New("not found"))
+		mockCache.On("SetNull", "user:basic:2").Once()
+		mockCache.On("SetExpiration", "user:basic:2", time.Duration(60)*time.Second).Once()
+
+		basicInfo, err := cachedRepo.GetUserBasicInfo(2)
+
+		assert.Error(t, err)
+		assert.Nil(t, basicInfo)
+	})
+}
+
+// TestCachedUserRepository_InterfaceCompliance tests that the cached repository implements the interface
+func TestCachedUserRepository_InterfaceCompliance(t *testing.T) {
+	mockRepo := new(MockUserRepository)
+	mockCache := new(MockCacheService)
+	cachedRepo := NewCachedUserRepository(mockRepo, mockRepo, mockCache)
+
+	// Verify that the cached repository implements UserRepository
+	var _ UserRepository = cachedRepo
+	assert.NotNil(t, cachedRepo)
+}
+
+// TestChatRepositoryAdapter_InterfaceCompliance tests that the chat repository adapter implements the interface
+func TestChatRepositoryAdapter_InterfaceCompliance(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	// Verify that the adapter implements ChatRepository
+	var _ ChatRepository = adapter
+	assert.NotNil(t, adapter)
+}
+
+// TestChatRepositoryAdapter_CreateChatSession tests the CreateChatSession method
+func TestChatRepositoryAdapter_CreateChatSession(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	ctx := context.Background()
+	sessionType := "direct"
+	name := "Test Session"
+	createdBy := 1
+
+	mockWriter.On("CreateChatSession", ctx, sessionType, &name, &createdBy).Return(1, nil)
+
+	id, err := adapter.CreateChatSession(ctx, sessionType, &name, &createdBy)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, id)
+	mockWriter.AssertExpectations(t)
+}
+
+// TestChatRepositoryAdapter_GetChatSession tests the GetChatSession method
+func TestChatRepositoryAdapter_GetChatSession(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	ctx := context.Background()
+	sessionID := 1
+
+	expectedSession := &ChatSession{
+		ID:          sessionID,
+		SessionType: "direct",
+	}
+	mockReader.On("GetChatSession", ctx, sessionID).Return(expectedSession, nil)
+
+	session, err := adapter.GetChatSession(ctx, sessionID)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, session)
+	assert.Equal(t, sessionID, session.ID)
+	mockReader.AssertExpectations(t)
+}
+
+// TestChatRepositoryAdapter_StoreEncryptedMessage tests the StoreEncryptedMessage method
+func TestChatRepositoryAdapter_StoreEncryptedMessage(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	ctx := context.Background()
+	encryptedMsg := &EncryptedMessage{
+		MessageID:        1,
+		EncryptedContent: "encrypted_content",
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
+	mockWriter.On("StoreEncryptedMessage", ctx, encryptedMsg).Return(nil)
 
-			err := cachedRepo.DeleteUser(tt.userID)
+	err := adapter.StoreEncryptedMessage(ctx, encryptedMsg)
 
-			if tt.expectedErr != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-			}
+	assert.NoError(t, err)
+	mockWriter.AssertExpectations(t)
+}
 
-			mockRepo.AssertExpectations(t)
-			mockCache.AssertExpectations(t)
-		})
+// TestChatRepositoryAdapter_GetUserPublicKey tests the GetUserPublicKey method
+func TestChatRepositoryAdapter_GetUserPublicKey(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	ctx := context.Background()
+	userID := 1
+	expectedKey := "-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----"
+
+	mockReader.On("GetUserPublicKey", ctx, userID).Return(expectedKey, nil)
+
+	key, err := adapter.GetUserPublicKey(ctx, userID)
+
+	assert.NoError(t, err)
+	assert.Equal(t, expectedKey, key)
+	mockReader.AssertExpectations(t)
+}
+
+// TestChatRepositoryAdapter_StoreOfflineEncryptedMessage tests the StoreOfflineEncryptedMessage method
+func TestChatRepositoryAdapter_StoreOfflineEncryptedMessage(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	ctx := context.Background()
+	offlineMsg := &OfflineEncryptedMessage{
+		RecipientID:      1,
+		SenderID:         2,
+		SessionID:        1,
+		EncryptedContent: []byte("encrypted"),
 	}
+
+	mockWriter.On("StoreOfflineEncryptedMessage", ctx, offlineMsg).Return(1, nil)
+
+	id, err := adapter.StoreOfflineEncryptedMessage(ctx, offlineMsg)
+
+	assert.NoError(t, err)
+	assert.Equal(t, 1, id)
+	mockWriter.AssertExpectations(t)
+}
+
+// TestChatRepositoryAdapter_GetUndeliveredOfflineMessages tests the GetUndeliveredOfflineMessages method
+func TestChatRepositoryAdapter_GetUndeliveredOfflineMessages(t *testing.T) {
+	mockReader := &MockChatReader{}
+	mockWriter := &MockChatWriter{}
+	adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+
+	ctx := context.Background()
+	recipientID := 1
+
+	expectedMessages := []*OfflineEncryptedMessage{
+		{
+			ID:          1,
+			RecipientID: recipientID,
+			SenderID:    2,
+		},
+	}
+	mockReader.On("GetUndeliveredOfflineMessages", ctx, recipientID).Return(expectedMessages, nil)
+
+	messages, err := adapter.GetUndeliveredOfflineMessages(ctx, recipientID)
+
+	assert.NoError(t, err)
+	assert.Len(t, messages, 1)
+	assert.Equal(t, 1, messages[0].ID)
+	mockReader.AssertExpectations(t)
 }

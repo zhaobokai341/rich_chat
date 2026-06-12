@@ -1,10 +1,215 @@
 package database
 
 import (
+	"context"
 	"time"
 
 	"github.com/stretchr/testify/mock"
 )
+
+// MockChatReader is a mock implementation of ChatReader for testing
+type MockChatReader struct {
+	mock.Mock
+}
+
+func (m *MockChatReader) GetChatSession(ctx context.Context, sessionID int) (*ChatSession, error) {
+	args := m.Called(ctx, sessionID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*ChatSession), args.Error(1)
+}
+
+func (m *MockChatReader) GetUsersInChatSession(ctx context.Context, sessionID int) ([]int, error) {
+	args := m.Called(ctx, sessionID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]int), args.Error(1)
+}
+
+func (m *MockChatReader) GetUserChatSessions(ctx context.Context, userID int) ([]*ChatSession, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*ChatSession), args.Error(1)
+}
+
+func (m *MockChatReader) GetMessageIndex(ctx context.Context, messageID int) (*MessageIndex, error) {
+	args := m.Called(ctx, messageID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*MessageIndex), args.Error(1)
+}
+
+func (m *MockChatReader) GetEncryptedMessage(ctx context.Context, messageID int) (*EncryptedMessage, error) {
+	args := m.Called(ctx, messageID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*EncryptedMessage), args.Error(1)
+}
+
+func (m *MockChatReader) GetMessagesForSession(ctx context.Context, sessionID int, limit, offset int) ([]*MessageIndex, error) {
+	args := m.Called(ctx, sessionID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*MessageIndex), args.Error(1)
+}
+
+func (m *MockChatReader) GetMessagesForUser(ctx context.Context, userID int, limit, offset int) ([]*MessageIndex, error) {
+	args := m.Called(ctx, userID, limit, offset)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*MessageIndex), args.Error(1)
+}
+
+func (m *MockChatReader) GetUnreadMessagesForUser(ctx context.Context, userID int) ([]int, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]int), args.Error(1)
+}
+
+func (m *MockChatReader) GetReadReceiptsForMessage(ctx context.Context, messageID int) ([]*MessageReadReceipt, error) {
+	args := m.Called(ctx, messageID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*MessageReadReceipt), args.Error(1)
+}
+
+func (m *MockChatReader) GetGroupChat(ctx context.Context, sessionID int) (*GroupChat, error) {
+	args := m.Called(ctx, sessionID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*GroupChat), args.Error(1)
+}
+
+func (m *MockChatReader) GetUserKey(ctx context.Context, userID int) (*UserKey, error) {
+	args := m.Called(ctx, userID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*UserKey), args.Error(1)
+}
+
+func (m *MockChatReader) GetUserPublicKey(ctx context.Context, userID int) (string, error) {
+	args := m.Called(ctx, userID)
+	return args.String(0), args.Error(1)
+}
+
+func (m *MockChatReader) GetUndeliveredOfflineMessages(ctx context.Context, recipientID int) ([]*OfflineEncryptedMessage, error) {
+	args := m.Called(ctx, recipientID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*OfflineEncryptedMessage), args.Error(1)
+}
+
+func (m *MockChatReader) GetOfflineMessageByID(ctx context.Context, messageID int) (*OfflineEncryptedMessage, error) {
+	args := m.Called(ctx, messageID)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*OfflineEncryptedMessage), args.Error(1)
+}
+
+func (m *MockChatReader) GetUndeliveredMessageCount(ctx context.Context, recipientID int) (int, error) {
+	args := m.Called(ctx, recipientID)
+	return args.Int(0), args.Error(1)
+}
+
+// MockChatWriter is a mock implementation of ChatWriter for testing
+type MockChatWriter struct {
+	mock.Mock
+}
+
+func (m *MockChatWriter) CreateChatSession(ctx context.Context, sessionType string, name *string, createdBy *int) (int, error) {
+	args := m.Called(ctx, sessionType, name, createdBy)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockChatWriter) AddUserToChatSession(ctx context.Context, sessionID, userID int) error {
+	args := m.Called(ctx, sessionID, userID)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) RemoveUserFromChatSession(ctx context.Context, sessionID, userID int) error {
+	args := m.Called(ctx, sessionID, userID)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) CreateMessageIndex(ctx context.Context, sessionID, senderID int, messageType string, replyToMessageID *int) (int, error) {
+	args := m.Called(ctx, sessionID, senderID, messageType, replyToMessageID)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockChatWriter) UpdateMessageReadStatus(ctx context.Context, messageID int, isRead bool) error {
+	args := m.Called(ctx, messageID, isRead)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) DeleteMessage(ctx context.Context, messageID int) error {
+	args := m.Called(ctx, messageID)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) StoreEncryptedMessage(ctx context.Context, encryptedMsg *EncryptedMessage) error {
+	args := m.Called(ctx, encryptedMsg)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) MarkMessageAsReadByUser(ctx context.Context, messageID, userID int) error {
+	args := m.Called(ctx, messageID, userID)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) CreateGroupChat(ctx context.Context, sessionID int, description, avatarURL *string, maxMembers int, privacyLevel string) error {
+	args := m.Called(ctx, sessionID, description, avatarURL, maxMembers, privacyLevel)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) UpdateGroupChat(ctx context.Context, sessionID int, description, avatarURL *string, maxMembers int, privacyLevel string) error {
+	args := m.Called(ctx, sessionID, description, avatarURL, maxMembers, privacyLevel)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) StoreUserKey(ctx context.Context, userKey *UserKey) error {
+	args := m.Called(ctx, userKey)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) UpdateUserKey(ctx context.Context, userKey *UserKey) error {
+	args := m.Called(ctx, userKey)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) DeactivateUserKey(ctx context.Context, userID int) error {
+	args := m.Called(ctx, userID)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) StoreOfflineEncryptedMessage(ctx context.Context, offlineMsg *OfflineEncryptedMessage) (int, error) {
+	args := m.Called(ctx, offlineMsg)
+	return args.Int(0), args.Error(1)
+}
+
+func (m *MockChatWriter) MarkOfflineMessageDelivered(ctx context.Context, messageID int) error {
+	args := m.Called(ctx, messageID)
+	return args.Error(0)
+}
+
+func (m *MockChatWriter) DeleteOfflineMessage(ctx context.Context, messageID int) error {
+	args := m.Called(ctx, messageID)
+	return args.Error(0)
+}
 
 // MockUserRepository is a mock implementation of UserRepository for testing
 type MockUserRepository struct {
@@ -94,6 +299,11 @@ func (m *MockUserRepository) GetUserBasicInfo(userID int) (*UserBasicInfo, error
 		return nil, args.Error(1)
 	}
 	return args.Get(0).(*UserBasicInfo), args.Error(1)
+}
+
+func (m *MockUserRepository) GetPasswordHash(userID int) (string, error) {
+	args := m.Called(userID)
+	return args.String(0), args.Error(1)
 }
 
 // MockRateLimitRepository is a mock implementation of RateLimitRepository for testing

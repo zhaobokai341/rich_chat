@@ -6,7 +6,7 @@ import (
 )
 
 func TestGenerateRSAKeyPair(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	publicKeyPEM, privateKeyPEM, err := service.GenerateRSAKeyPair()
 	if err != nil {
@@ -40,14 +40,14 @@ func TestGenerateRSAKeyPair(t *testing.T) {
 		t.Fatal("Parsed private key should not be nil")
 	}
 
-	// Verify key size is 4096 bits
-	if privateKey.N.BitLen() != 4096 {
-		t.Errorf("Expected 4096-bit key, got %d bits", privateKey.N.BitLen())
+	// Verify key size is 2048 bits
+	if privateKey.N.BitLen() != 2048 {
+		t.Errorf("Expected 2048-bit key, got %d bits", privateKey.N.BitLen())
 	}
 }
 
 func TestEncryptDecryptMessage(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate key pair
 	publicKeyPEM, privateKeyPEM, err := service.GenerateRSAKeyPair()
@@ -83,7 +83,7 @@ func TestEncryptDecryptMessage(t *testing.T) {
 }
 
 func TestDecryptWithWrongPrivateKey(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate two different key pairs
 	publicKeyPEM1, _, err := service.GenerateRSAKeyPair()
@@ -111,7 +111,7 @@ func TestDecryptWithWrongPrivateKey(t *testing.T) {
 }
 
 func TestDecryptWithTamperedData(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate key pair
 	publicKeyPEM, privateKeyPEM, err := service.GenerateRSAKeyPair()
@@ -137,7 +137,7 @@ func TestDecryptWithTamperedData(t *testing.T) {
 }
 
 func TestEncryptDecryptWithAES(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate a 32-byte key
 	key := make([]byte, 32)
@@ -173,7 +173,7 @@ func TestEncryptDecryptWithAES(t *testing.T) {
 }
 
 func TestAESWithWrongKey(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate two different keys
 	key1 := make([]byte, 32)
@@ -198,7 +198,7 @@ func TestAESWithWrongKey(t *testing.T) {
 }
 
 func TestAESWithInvalidKeySize(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Test with wrong key size
 	wrongKey := make([]byte, 16) // Should be 32 bytes
@@ -216,7 +216,7 @@ func TestAESWithInvalidKeySize(t *testing.T) {
 }
 
 func TestSessionKeyEncryptionDecryption(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate key pair
 	publicKeyPEM, privateKeyPEM, err := service.GenerateRSAKeyPair()
@@ -254,7 +254,7 @@ func TestSessionKeyEncryptionDecryption(t *testing.T) {
 }
 
 func TestParseInvalidPublicKey(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Test with invalid PEM
 	_, err := service.ParseRSAPublicKeyFromPEM("invalid pem data")
@@ -273,7 +273,7 @@ MIIEowIBAAKCAQEA2a2rwplBQL1mLbNEZ7Hn5VwO6v2M5V8nV8nV8nV8nV8nV8nV
 }
 
 func TestParseInvalidPrivateKey(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Test with invalid PEM
 	_, err := service.ParseRSAPrivateKeyFromPEM("invalid pem data")
@@ -292,7 +292,7 @@ MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA2a2rwplBQL1mLbNEZ7Hn
 }
 
 func TestMultipleEncryptDecryptCycles(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate key pair
 	publicKeyPEM, privateKeyPEM, err := service.GenerateRSAKeyPair()
@@ -333,7 +333,7 @@ func TestMultipleEncryptDecryptCycles(t *testing.T) {
 }
 
 func TestLargeMessageEncryption(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate key pair
 	publicKeyPEM, privateKeyPEM, err := service.GenerateRSAKeyPair()
@@ -366,7 +366,7 @@ func TestLargeMessageEncryption(t *testing.T) {
 }
 
 func TestKeyPairUniqueness(t *testing.T) {
-	service := NewE2EEncryptionService(RSA_KEY_SIZE)
+	service := NewE2EEncryptionService()
 
 	// Generate multiple key pairs and verify they're different
 	publicKey1, privateKey1, err := service.GenerateRSAKeyPair()

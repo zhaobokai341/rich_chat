@@ -41,7 +41,6 @@ type MockChatRepository struct {
 	DeactivateUserKeyFunc             func(ctx context.Context, userID int) error
 	StoreOfflineEncryptedMessageFunc  func(ctx context.Context, offlineMsg *database.OfflineEncryptedMessage) (int, error)
 	GetUndeliveredOfflineMessagesFunc func(ctx context.Context, recipientID int) ([]*database.OfflineEncryptedMessage, error)
-	GetOfflineMessageByIDFunc         func(ctx context.Context, messageID int) (*database.OfflineEncryptedMessage, error)
 	MarkOfflineMessageDeliveredFunc   func(ctx context.Context, messageID int) error
 	DeleteOfflineMessageFunc          func(ctx context.Context, messageID int) error
 	GetUndeliveredMessageCountFunc    func(ctx context.Context, recipientID int) (int, error)
@@ -155,10 +154,6 @@ func (m *MockChatRepository) GetUndeliveredOfflineMessages(ctx context.Context, 
 	return m.GetUndeliveredOfflineMessagesFunc(ctx, recipientID)
 }
 
-func (m *MockChatRepository) GetOfflineMessageByID(ctx context.Context, messageID int) (*database.OfflineEncryptedMessage, error) {
-	return m.GetOfflineMessageByIDFunc(ctx, messageID)
-}
-
 func (m *MockChatRepository) MarkOfflineMessageDelivered(ctx context.Context, messageID int) error {
 	return m.MarkOfflineMessageDeliveredFunc(ctx, messageID)
 }
@@ -187,7 +182,6 @@ type MockUserRepository struct {
 	DeleteUserFunc       func(userID int) error
 	GetLockStatusFunc    func(identifier string) (*time.Time, error)
 	ClearExpiredLockFunc func(identifier string) error
-	GetPasswordHashFunc  func(userID int) (string, error)
 }
 
 func (m *MockUserRepository) CreateUser(username, passwordHash string) (int, error) {
@@ -292,13 +286,6 @@ func (m *MockUserRepository) ClearExpiredLock(identifier string) error {
 	return nil
 }
 
-func (m *MockUserRepository) GetPasswordHash(userID int) (string, error) {
-	if m.GetPasswordHashFunc != nil {
-		return m.GetPasswordHashFunc(userID)
-	}
-	return "hashed_password", nil
-}
-
 // MockE2EEncryptionService is a mock implementation of E2EEncryptionService for testing
 type MockE2EEncryptionService struct {
 	GenerateRSAKeyPairFunc        func() (string, string, error)
@@ -363,7 +350,7 @@ func TestCreateSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		name := "Test Session"
 		req := &CreateSessionRequest{
@@ -392,7 +379,7 @@ func TestCreateSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &CreateSessionRequest{
 			CreatorID:   1,
@@ -408,18 +395,9 @@ func TestCreateSession(t *testing.T) {
 	})
 
 	t.Run("Invalid Session Type", func(t *testing.T) {
-		mockRepo := &MockChatRepository{
-			CreateChatSessionFunc: func(ctx context.Context, sessionType string, name *string, createdBy *int) (int, error) {
-				return 0, errors.New("invalid session type")
-			},
-		}
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
+		mockRepo := &MockChatRepository{}
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &CreateSessionRequest{
 			CreatorID:   1,
@@ -429,7 +407,7 @@ func TestCreateSession(t *testing.T) {
 		resp, err := service.CreateSession(ctx, req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)
-		assert.Contains(t, err.Error(), "failed to create session")
+		assert.Contains(t, err.Error(), "invalid session type")
 	})
 
 	t.Run("Create Session Fails", func(t *testing.T) {
@@ -438,14 +416,9 @@ func TestCreateSession(t *testing.T) {
 				return 0, errors.New("database error")
 			},
 		}
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &CreateSessionRequest{
 			CreatorID:   1,
@@ -455,7 +428,7 @@ func TestCreateSession(t *testing.T) {
 		resp, err := service.CreateSession(ctx, req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)
-		assert.Contains(t, err.Error(), "failed to create session")
+		assert.Contains(t, err.Error(), "failed to create chat session")
 	})
 
 	t.Run("Add Creator To Session Fails", func(t *testing.T) {
@@ -472,7 +445,7 @@ func TestCreateSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &CreateSessionRequest{
 			CreatorID:   1,
@@ -500,7 +473,7 @@ func TestJoinSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &JoinSessionRequest{
 			UserID:    2,
@@ -519,7 +492,7 @@ func TestJoinSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &JoinSessionRequest{
 			UserID:    2,
@@ -542,7 +515,7 @@ func TestJoinSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &JoinSessionRequest{
 			UserID:    2,
@@ -566,7 +539,7 @@ func TestLeaveSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &LeaveSessionRequest{
 			UserID:    2,
@@ -585,7 +558,7 @@ func TestLeaveSession(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &LeaveSessionRequest{
 			UserID:    2,
@@ -619,7 +592,7 @@ func TestGetUserSessions(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		sessions, err := service.GetUserSessions(ctx, 1)
 		assert.NoError(t, err)
@@ -638,7 +611,7 @@ func TestGetUserSessions(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		sessions, err := service.GetUserSessions(ctx, 1)
 		assert.Error(t, err)
@@ -659,14 +632,9 @@ func TestStoreUserKey(t *testing.T) {
 				return nil
 			},
 		}
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &StoreUserKeyRequest{
 			UserID:       1,
@@ -680,8 +648,6 @@ func TestStoreUserKey(t *testing.T) {
 
 	t.Run("Success - Replace Existing Key", func(t *testing.T) {
 		now := time.Now()
-		deactivated := false
-		stored := false
 		mockRepo := &MockChatRepository{
 			GetUserKeyFunc: func(ctx context.Context, userID int) (*database.UserKey, error) {
 				return &database.UserKey{
@@ -692,23 +658,15 @@ func TestStoreUserKey(t *testing.T) {
 				}, nil
 			},
 			DeactivateUserKeyFunc: func(ctx context.Context, userID int) error {
-				deactivated = true
 				return nil
 			},
 			StoreUserKeyFunc: func(ctx context.Context, userKey *database.UserKey) error {
-				stored = true
-				assert.True(t, userKey.IsActive, "New key should be active")
 				return nil
-			},
-		}
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
 			},
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &StoreUserKeyRequest{
 			UserID:       1,
@@ -718,14 +676,12 @@ func TestStoreUserKey(t *testing.T) {
 
 		err := service.StoreUserKey(ctx, req)
 		assert.NoError(t, err)
-		assert.True(t, deactivated, "Existing key should be deactivated")
-		assert.True(t, stored, "New key should be stored")
 	})
 
 	t.Run("Missing Public Key", func(t *testing.T) {
 		mockRepo := &MockChatRepository{}
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &StoreUserKeyRequest{
 			UserID:       1,
@@ -735,28 +691,13 @@ func TestStoreUserKey(t *testing.T) {
 
 		err := service.StoreUserKey(ctx, req)
 		assert.Error(t, err)
-		assert.Equal(t, ErrInvalidInput, err)
+		assert.Contains(t, err.Error(), "public key is required")
 	})
 
-	t.Run("Missing Key Algorithm - Uses Default", func(t *testing.T) {
-		mockRepo := &MockChatRepository{
-			GetUserKeyFunc: func(ctx context.Context, userID int) (*database.UserKey, error) {
-				return nil, errors.New("key not found")
-			},
-			StoreUserKeyFunc: func(ctx context.Context, userKey *database.UserKey) error {
-				// Verify default algorithm is used
-				assert.Equal(t, "RSA-4096", userKey.KeyAlgorithm)
-				return nil
-			},
-		}
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
-
+	t.Run("Missing Key Algorithm", func(t *testing.T) {
+		mockRepo := &MockChatRepository{}
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &StoreUserKeyRequest{
 			UserID:       1,
@@ -765,7 +706,8 @@ func TestStoreUserKey(t *testing.T) {
 		}
 
 		err := service.StoreUserKey(ctx, req)
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "key algorithm is required")
 	})
 
 	t.Run("Store Key Fails", func(t *testing.T) {
@@ -777,14 +719,9 @@ func TestStoreUserKey(t *testing.T) {
 				return errors.New("database error")
 			},
 		}
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &StoreUserKeyRequest{
 			UserID:       1,
@@ -804,9 +741,6 @@ func TestGetUserPublicKey(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		now := time.Now()
 		mockRepo := &MockChatRepository{
-			GetUserPublicKeyFunc: func(ctx context.Context, userID int) (string, error) {
-				return "-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----", nil
-			},
 			GetUserKeyFunc: func(ctx context.Context, userID int) (*database.UserKey, error) {
 				return &database.UserKey{
 					ID:           1,
@@ -820,7 +754,7 @@ func TestGetUserPublicKey(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &GetUserKeyRequest{
 			UserID: 1,
@@ -836,16 +770,13 @@ func TestGetUserPublicKey(t *testing.T) {
 
 	t.Run("Key Not Found", func(t *testing.T) {
 		mockRepo := &MockChatRepository{
-			GetUserPublicKeyFunc: func(ctx context.Context, userID int) (string, error) {
-				return "", errors.New("key not found")
-			},
 			GetUserKeyFunc: func(ctx context.Context, userID int) (*database.UserKey, error) {
 				return nil, errors.New("key not found")
 			},
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &GetUserKeyRequest{
 			UserID: 999,
@@ -854,7 +785,7 @@ func TestGetUserPublicKey(t *testing.T) {
 		resp, err := service.GetUserPublicKey(ctx, req)
 		assert.Error(t, err)
 		assert.Nil(t, resp)
-		assert.Contains(t, err.Error(), "failed to get user public key")
+		assert.Contains(t, err.Error(), "failed to get user key")
 	})
 }
 
@@ -862,11 +793,6 @@ func TestSendEncryptedMessage(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("Success - Offline Message", func(t *testing.T) {
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
 		mockRepo := &MockChatRepository{
 			StoreOfflineEncryptedMessageFunc: func(ctx context.Context, offlineMsg *database.OfflineEncryptedMessage) (int, error) {
 				return 1, nil
@@ -879,13 +805,7 @@ func TestSendEncryptedMessage(t *testing.T) {
 			},
 		}
 
-		mockOnlineChecker := &MockOnlineStatusChecker{
-			IsUserOnlineFunc: func(userID int) bool {
-				return false // User is offline
-			},
-		}
-
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, mockOnlineChecker)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &SendMessageRequest{
 			SenderID:         1,
@@ -906,54 +826,10 @@ func TestSendEncryptedMessage(t *testing.T) {
 		assert.False(t, resp.IsDelivered)
 	})
 
-	t.Run("Success - Online User", func(t *testing.T) {
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
-		mockRepo := &MockChatRepository{
-			CreateMessageIndexFunc: func(ctx context.Context, sessionID, senderID int, messageType string, replyToMessageID *int) (int, error) {
-				return 1, nil
-			},
-			StoreEncryptedMessageFunc: func(ctx context.Context, encryptedMsg *database.EncryptedMessage) error {
-				return nil
-			},
-		}
-
-		mockE2EE := &MockE2EEncryptionService{
-			EncryptMessageFunc: func(plaintext []byte, recipientPublicKeyPEM string) ([]byte, []byte, []byte, []byte, error) {
-				return []byte("encrypted_session_key"), []byte("encrypted_content"), []byte("iv"), []byte("auth_tag"), nil
-			},
-		}
-
-		mockOnlineChecker := &MockOnlineStatusChecker{
-			IsUserOnlineFunc: func(userID int) bool {
-				return true // User is online
-			},
-		}
-
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, mockOnlineChecker)
-
-		req := &SendMessageRequest{
-			SenderID:         1,
-			RecipientID:      2,
-			SessionID:        1,
-			PlaintextContent: []byte("Hello, this is a secret message!"),
-			RecipientPubKey:  "-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----",
-		}
-
-		resp, err := service.SendEncryptedMessage(ctx, req)
-		assert.NoError(t, err)
-		assert.NotNil(t, resp)
-		assert.Equal(t, 1, resp.MessageID)
-		assert.True(t, resp.IsDelivered)
-	})
-
 	t.Run("Empty Message Content", func(t *testing.T) {
 		mockRepo := &MockChatRepository{}
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &SendMessageRequest{
 			SenderID:         1,
@@ -972,7 +848,7 @@ func TestSendEncryptedMessage(t *testing.T) {
 	t.Run("Missing Recipient Public Key", func(t *testing.T) {
 		mockRepo := &MockChatRepository{}
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &SendMessageRequest{
 			SenderID:         1,
@@ -996,7 +872,7 @@ func TestSendEncryptedMessage(t *testing.T) {
 			},
 		}
 
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &SendMessageRequest{
 			SenderID:         1,
@@ -1013,11 +889,6 @@ func TestSendEncryptedMessage(t *testing.T) {
 	})
 
 	t.Run("Store Offline Message Fails", func(t *testing.T) {
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
 		mockRepo := &MockChatRepository{
 			StoreOfflineEncryptedMessageFunc: func(ctx context.Context, offlineMsg *database.OfflineEncryptedMessage) (int, error) {
 				return 0, errors.New("database error")
@@ -1030,13 +901,7 @@ func TestSendEncryptedMessage(t *testing.T) {
 			},
 		}
 
-		mockOnlineChecker := &MockOnlineStatusChecker{
-			IsUserOnlineFunc: func(userID int) bool {
-				return false // User is offline
-			},
-		}
-
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, mockOnlineChecker)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &SendMessageRequest{
 			SenderID:         1,
@@ -1050,51 +915,6 @@ func TestSendEncryptedMessage(t *testing.T) {
 		assert.Error(t, err)
 		assert.Nil(t, resp)
 		assert.Contains(t, err.Error(), "failed to store offline encrypted message")
-	})
-
-	t.Run("Success - Online Recipient (No Offline Storage)", func(t *testing.T) {
-		mockUserRepo := &MockUserRepository{
-			ExistsByIDFunc: func(id int) (bool, error) {
-				return true, nil
-			},
-		}
-		mockRepo := &MockChatRepository{
-			CreateMessageIndexFunc: func(ctx context.Context, sessionID, senderID int, messageType string, replyToMessageID *int) (int, error) {
-				return 1, nil
-			},
-			StoreEncryptedMessageFunc: func(ctx context.Context, encryptedMsg *database.EncryptedMessage) error {
-				return nil
-			},
-		}
-
-		mockE2EE := &MockE2EEncryptionService{
-			EncryptMessageFunc: func(plaintext []byte, recipientPublicKeyPEM string) ([]byte, []byte, []byte, []byte, error) {
-				return []byte("encrypted_session_key"), []byte("encrypted_content"), []byte("iv"), []byte("auth_tag"), nil
-			},
-		}
-
-		// Mock online checker - recipient is online
-		mockOnlineChecker := &MockOnlineStatusChecker{
-			IsUserOnlineFunc: func(userID int) bool {
-				return userID == 2 // Recipient is online
-			},
-		}
-
-		service := NewChatService(mockRepo, mockUserRepo, mockE2EE, mockOnlineChecker)
-
-		req := &SendMessageRequest{
-			SenderID:         1,
-			RecipientID:      2,
-			SessionID:        1,
-			PlaintextContent: []byte("Hello, this is a secret message!"),
-			RecipientPubKey:  "-----BEGIN PUBLIC KEY-----\ntest\n-----END PUBLIC KEY-----",
-		}
-
-		resp, err := service.SendEncryptedMessage(ctx, req)
-		assert.NoError(t, err)
-		assert.NotNil(t, resp)
-		assert.Equal(t, 1, resp.MessageID)
-		assert.True(t, resp.IsDelivered) // Should be true since recipient is online
 	})
 }
 
@@ -1135,7 +955,7 @@ func TestGetOfflineMessages(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &GetOfflineMessagesRequest{
 			UserID: 1,
@@ -1158,7 +978,7 @@ func TestGetOfflineMessages(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &GetOfflineMessagesRequest{
 			UserID: 1,
@@ -1179,7 +999,7 @@ func TestGetOfflineMessages(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		req := &GetOfflineMessagesRequest{
 			UserID: 1,
@@ -1197,12 +1017,14 @@ func TestMarkMessageDelivered(t *testing.T) {
 
 	t.Run("Success", func(t *testing.T) {
 		mockRepo := &MockChatRepository{
-			GetOfflineMessageByIDFunc: func(ctx context.Context, messageID int) (*database.OfflineEncryptedMessage, error) {
-				return &database.OfflineEncryptedMessage{
-					ID:          1,
-					RecipientID: 1,
-					SenderID:    2,
-					SessionID:   1,
+			GetUndeliveredOfflineMessagesFunc: func(ctx context.Context, recipientID int) ([]*database.OfflineEncryptedMessage, error) {
+				return []*database.OfflineEncryptedMessage{
+					{
+						ID:          1,
+						RecipientID: recipientID,
+						SenderID:    2,
+						SessionID:   1,
+					},
 				}, nil
 			},
 			MarkOfflineMessageDeliveredFunc: func(ctx context.Context, messageID int) error {
@@ -1211,7 +1033,7 @@ func TestMarkMessageDelivered(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		err := service.MarkMessageDelivered(ctx, 1, 1)
 		assert.NoError(t, err)
@@ -1219,47 +1041,51 @@ func TestMarkMessageDelivered(t *testing.T) {
 
 	t.Run("Message Not Found", func(t *testing.T) {
 		mockRepo := &MockChatRepository{
-			GetOfflineMessageByIDFunc: func(ctx context.Context, messageID int) (*database.OfflineEncryptedMessage, error) {
-				return nil, errors.New("message not found")
+			GetUndeliveredOfflineMessagesFunc: func(ctx context.Context, recipientID int) ([]*database.OfflineEncryptedMessage, error) {
+				return []*database.OfflineEncryptedMessage{}, nil
 			},
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		err := service.MarkMessageDelivered(ctx, 1, 999)
 		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "failed to verify message ownership")
+		assert.Contains(t, err.Error(), "message not found or does not belong to user")
 	})
 
 	t.Run("Message Belongs To Different User", func(t *testing.T) {
 		mockRepo := &MockChatRepository{
-			GetOfflineMessageByIDFunc: func(ctx context.Context, messageID int) (*database.OfflineEncryptedMessage, error) {
-				return &database.OfflineEncryptedMessage{
-					ID:          1,
-					RecipientID: 2, // Different user
-					SenderID:    1,
-					SessionID:   1,
+			GetUndeliveredOfflineMessagesFunc: func(ctx context.Context, recipientID int) ([]*database.OfflineEncryptedMessage, error) {
+				return []*database.OfflineEncryptedMessage{
+					{
+						ID:          1,
+						RecipientID: 999, // Different user
+						SenderID:    2,
+						SessionID:   1,
+					},
 				}, nil
 			},
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		err := service.MarkMessageDelivered(ctx, 1, 1)
 		assert.Error(t, err)
-		assert.Equal(t, ErrUnauthorized, err)
+		assert.Contains(t, err.Error(), "message not found or does not belong to user")
 	})
 
 	t.Run("Mark Delivered Fails", func(t *testing.T) {
 		mockRepo := &MockChatRepository{
-			GetOfflineMessageByIDFunc: func(ctx context.Context, messageID int) (*database.OfflineEncryptedMessage, error) {
-				return &database.OfflineEncryptedMessage{
-					ID:          1,
-					RecipientID: 1,
-					SenderID:    2,
-					SessionID:   1,
+			GetUndeliveredOfflineMessagesFunc: func(ctx context.Context, recipientID int) ([]*database.OfflineEncryptedMessage, error) {
+				return []*database.OfflineEncryptedMessage{
+					{
+						ID:          1,
+						RecipientID: recipientID,
+						SenderID:    2,
+						SessionID:   1,
+					},
 				}, nil
 			},
 			MarkOfflineMessageDeliveredFunc: func(ctx context.Context, messageID int) error {
@@ -1268,7 +1094,7 @@ func TestMarkMessageDelivered(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		err := service.MarkMessageDelivered(ctx, 1, 1)
 		assert.Error(t, err)
@@ -1287,7 +1113,7 @@ func TestGetUndeliveredMessageCount(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		count, err := service.GetUndeliveredMessageCount(ctx, 1)
 		assert.NoError(t, err)
@@ -1302,7 +1128,7 @@ func TestGetUndeliveredMessageCount(t *testing.T) {
 		}
 
 		mockE2EE := &MockE2EEncryptionService{}
-		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE, nil)
+		service := NewChatService(mockRepo, &MockUserRepository{}, mockE2EE)
 
 		count, err := service.GetUndeliveredMessageCount(ctx, 1)
 		assert.Error(t, err)

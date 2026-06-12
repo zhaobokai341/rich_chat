@@ -22,7 +22,6 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 	config := AuthConfig{
 		MaxUsernameLength: 50,
 		VerifyTokenTTL:    time.Minute * 5,
-		JWTExpiration:     JWT_EXPIRE_TIME,
 	}
 
 	authService := NewAuthService(mockUserRepo, mockRateLimitRepo, mockTokenService, config)
@@ -56,7 +55,7 @@ func TestAuthServiceImpl_Login(t *testing.T) {
 				}, nil)
 				mockRateLimitRepo.On("TrackLoginAttempt", "testuser", true).Return(nil)
 				mockUserRepo.On("UpdateLastLogin", 1).Return(nil)
-				mockTokenService.On("GenerateJWT", 1, JWT_EXPIRE_TIME).Return("jwt-token-here", nil)
+				mockTokenService.On("GenerateJWT", 1, 30*24*time.Hour).Return("jwt-token-here", nil)
 			},
 		},
 		{
@@ -148,7 +147,6 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 	config := AuthConfig{
 		MaxUsernameLength: 50,
 		VerifyTokenTTL:    time.Minute * 5,
-		JWTExpiration:     JWT_EXPIRE_TIME,
 	}
 
 	authService := NewAuthService(mockUserRepo, mockRateLimitRepo, mockTokenService, config)
@@ -174,7 +172,7 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			setupMocks: func() {
 				mockUserRepo.On("ExistsByUsername", "newuser").Return(false, nil)
 				mockUserRepo.On("CreateUser", "newuser", mock.AnythingOfType("string")).Return(1, nil)
-				mockTokenService.On("GenerateJWT", 1, JWT_EXPIRE_TIME).Return("jwt-token-here", nil)
+				mockTokenService.On("GenerateJWT", 1, 30*24*time.Hour).Return("jwt-token-here", nil)
 			},
 		},
 		{
@@ -191,7 +189,7 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			setupMocks: func() {
 				mockUserRepo.On("ExistsByUsername", "ab").Return(false, nil)
 				mockUserRepo.On("CreateUser", "ab", mock.AnythingOfType("string")).Return(2, nil)
-				mockTokenService.On("GenerateJWT", 2, JWT_EXPIRE_TIME).Return("jwt-token-ab", nil)
+				mockTokenService.On("GenerateJWT", 2, 30*24*time.Hour).Return("jwt-token-ab", nil)
 			},
 		},
 		{
@@ -208,7 +206,7 @@ func TestAuthServiceImpl_Register(t *testing.T) {
 			setupMocks: func() {
 				mockUserRepo.On("ExistsByUsername", "validuser").Return(false, nil)
 				mockUserRepo.On("CreateUser", "validuser", mock.AnythingOfType("string")).Return(3, nil)
-				mockTokenService.On("GenerateJWT", 3, JWT_EXPIRE_TIME).Return("jwt-token-validuser", nil)
+				mockTokenService.On("GenerateJWT", 3, 30*24*time.Hour).Return("jwt-token-validuser", nil)
 			},
 		},
 		{

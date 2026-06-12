@@ -7,14 +7,10 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// DatabaseService is the refactored service that uses repositories with read-write separation
+// DatabaseService is the new refactored service that uses repositories
 type DatabaseService struct {
-	userReader    UserReader
-	userWriter    UserWriter
-	userRepo      UserRepository // Combined reader+writer for backward compatibility
-	chatReader    ChatReader
-	chatWriter    ChatWriter
-	chatRepo      ChatRepository // Combined reader+writer for backward compatibility
+	userRepo      UserRepository
+	chatRepo      ChatRepository
 	rateLimitRepo RateLimitRepository
 	tokenRepo     TokenRepository
 	cache         CacheService
@@ -22,37 +18,30 @@ type DatabaseService struct {
 	db            *sqlx.DB
 }
 
-// NewDatabaseService creates a new database service with read-write separation
+// NewDatabaseService creates a new database service with dependency injection
 func NewDatabaseService(
 	db *sqlx.DB,
 	cache CacheService,
 	config Config,
 ) *DatabaseService {
-	// Create PostgreSQL user reader and writer (read-write separation)
-	pgUserReader := NewPostgresUserReader(db)
-	pgUserWriter := NewPostgresUserWriter(db)
+	// Create PostgreSQL user repository
+	pgUserRepo := NewPostgresUserRepository(db)
 
-	// Create cached user repository (combines cached reader and writer)
-	cachedUserRepo := NewCachedUserRepository(pgUserReader, pgUserWriter, cache)
+	// Create PostgreSQL chat repository
+	pgChatRepo := NewPostgresChatRepository(db)
 
-	// Create PostgreSQL chat reader and writer (read-write separation)
-	pgChatReader := NewPostgresChatReader(db)
-	pgChatWriter := NewPostgresChatWriter(db)
-	chatRepoAdapter := NewChatRepositoryAdapter(pgChatReader, pgChatWriter)
+	// Wrap with caching decorator
+	cachedUserRepo := NewCachedUserRepository(pgUserRepo, cache)
 
 	// Create rate limit repository
 	rateLimitRepo := NewRedisRateLimitRepository(cache, cachedUserRepo, config)
 
 	// Create token repository
-	tokenRepo := NewRedisTokenRepository(cache, config.LOCKOUT_DURATION)
+	tokenRepo := NewRedisTokenRepository(cache, config.IP_LIMIT_TIME)
 
 	return &DatabaseService{
-		userReader:    NewCachedUserReader(pgUserReader, cache),
-		userWriter:    NewCachedUserWriter(pgUserWriter, cache, pgUserReader),
 		userRepo:      cachedUserRepo,
-		chatReader:    pgChatReader,
-		chatWriter:    pgChatWriter,
-		chatRepo:      chatRepoAdapter,
+		chatRepo:      pgChatRepo,
 		rateLimitRepo: rateLimitRepo,
 		tokenRepo:     tokenRepo,
 		cache:         cache,
@@ -61,34 +50,9 @@ func NewDatabaseService(
 	}
 }
 
-// GetUserReader returns the user reader
-func (ds *DatabaseService) GetUserReader() UserReader {
-	return ds.userReader
-}
-
-// GetUserWriter returns the user writer
-func (ds *DatabaseService) GetUserWriter() UserWriter {
-	return ds.userWriter
-}
-
-// GetUserRepository returns the user repository (backward compatibility)
+// GetUserRepository returns the user repository
 func (ds *DatabaseService) GetUserRepository() UserRepository {
 	return ds.userRepo
-}
-
-// GetChatReader returns the chat reader
-func (ds *DatabaseService) GetChatReader() ChatReader {
-	return ds.chatReader
-}
-
-// GetChatWriter returns the chat writer
-func (ds *DatabaseService) GetChatWriter() ChatWriter {
-	return ds.chatWriter
-}
-
-// GetChatRepository returns the chat repository (backward compatibility)
-func (ds *DatabaseService) GetChatRepository() ChatRepository {
-	return ds.chatRepo
 }
 
 // GetRateLimitRepository returns the rate limit repository
@@ -101,9 +65,9 @@ func (ds *DatabaseService) GetTokenRepository() TokenRepository {
 	return ds.tokenRepo
 }
 
-// GetCache returns the cache service
-func (ds *DatabaseService) GetCache() CacheService {
-	return ds.cache
+// GetChatRepository returns the chat repository
+func (ds *DatabaseService) GetChatRepository() ChatRepository {
+	return ds.chatRepo
 }
 
 // GetDB returns the underlying database connection

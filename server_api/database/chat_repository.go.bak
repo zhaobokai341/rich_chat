@@ -48,7 +48,6 @@ type ChatRepository interface {
 	// E2EE Offline Message Operations
 	StoreOfflineEncryptedMessage(ctx context.Context, offlineMsg *OfflineEncryptedMessage) (int, error)
 	GetUndeliveredOfflineMessages(ctx context.Context, recipientID int) ([]*OfflineEncryptedMessage, error)
-	GetOfflineMessageByID(ctx context.Context, messageID int) (*OfflineEncryptedMessage, error)
 	MarkOfflineMessageDelivered(ctx context.Context, messageID int) error
 	DeleteOfflineMessage(ctx context.Context, messageID int) error
 	GetUndeliveredMessageCount(ctx context.Context, recipientID int) (int, error)

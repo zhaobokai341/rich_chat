@@ -17,7 +17,7 @@ func TestUserServiceImpl_GetUserProfile(t *testing.T) {
 	mockUserRepo := new(database.MockUserRepository)
 	mockRateLimitRepo := new(database.MockRateLimitRepository)
 
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo)
+	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 1000)
 
 	tests := []struct {
 		name          string
@@ -48,7 +48,7 @@ func TestUserServiceImpl_GetUserProfile(t *testing.T) {
 			name:          "profile not found",
 			userID:        999,
 			expectedUser:  nil,
-			expectedError: ErrInvalidPassword, // Changed to prevent user enumeration
+			expectedError: ErrInvalidPassword,
 			setupMocks: func() {
 				mockUserRepo.On("ExistsByID", 999).Return(false, nil)
 			},
@@ -110,28 +110,28 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 		setupMocks    func(*database.MockUserRepository, *database.MockRateLimitRepository)
 	}{
 		{
-			name: "successful profile update - nickname",
+			name: "successful profile update",
 			req: &UserProfileUpdateRequest{
 				UserID: 1,
-				Key:    "nickname",
-				Value:  "NewNickname",
+				Key:    "display_name",
+				Value:  "New Display Name",
 			},
 			expectedError: nil,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{ID: 1, Username: "testuser"}, nil)
-				mockUserRepo.On("UpdateProfile", 1, "nickname", "NewNickname").Return(nil)
+				mockUserRepo.On("FindByID", 1).Return(&database.User{}, nil)
+				mockUserRepo.On("UpdateProfile", 1, "display_name", "New Display Name").Return(nil)
 			},
 		},
 		{
 			name: "profile update fails - user not found",
 			req: &UserProfileUpdateRequest{
 				UserID: 2,
-				Key:    "nickname",
+				Key:    "display_name",
 				Value:  "Invalid Name",
 			},
-			expectedError: ErrInvalidPassword, // Changed to prevent user enumeration
+			expectedError: ErrInvalidPassword,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 2).Return(nil, errors.New("user not found"))
+				mockUserRepo.On("FindByID", 2).Return(nil, errors.New("not found"))
 				mockRateLimitRepo.On("TrackLoginAttempt", "2", false).Return(nil)
 			},
 		},
@@ -146,36 +146,13 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
 		},
 		{
-			name: "profile update fails - empty value",
+			name: "profile update fails - invalid email format",
 			req: &UserProfileUpdateRequest{
 				UserID: 1,
-				Key:    "nickname",
-				Value:  "",
+				Key:    "email",
+				Value:  "invalid-email",
 			},
-			expectedError: nil, // Empty value is now allowed, will be handled by database layer
-			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{ID: 1, Username: "testuser"}, nil)
-				mockUserRepo.On("UpdateProfile", 1, "nickname", "").Return(nil)
-			},
-		},
-		{
-			name: "profile update fails - nickname exceeds max length",
-			req: &UserProfileUpdateRequest{
-				UserID: 1,
-				Key:    "nickname",
-				Value:  string(make([]byte, ALLOW_MAX_LENGTH_OF_NICKNAME+1)),
-			},
-			expectedError: ErrInvalidNicknameFormat,
-			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
-		},
-		{
-			name: "profile update fails - bio exceeds max length",
-			req: &UserProfileUpdateRequest{
-				UserID: 1,
-				Key:    "bio",
-				Value:  string(make([]byte, ALLOW_MAX_LENGTH_OF_BIO+1)),
-			},
-			expectedError: ErrBioExceedsMaxLength,
+			expectedError: ErrInvalidEmailFormat,
 			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
 		},
 		{
@@ -183,10 +160,46 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 			req: &UserProfileUpdateRequest{
 				UserID: 1,
 				Key:    "email",
-				Value:  string(make([]byte, ALLOW_MAX_LENGTH_OF_EMAIL+1)),
+				Value:  string(make([]byte, 300)) + "@example.com",
 			},
 			expectedError: ErrEmailExceedsMaxLength,
 			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
+		},
+		{
+			name: "profile update fails - bio exceeds max length",
+			req: &UserProfileUpdateRequest{
+				UserID: 1,
+				Key:    "bio",
+				Value:  string(make([]byte, 600)),
+			},
+			expectedError: ErrBioExceedsMaxLength,
+			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
+		},
+		{
+			name: "successful profile update - nickname",
+			req: &UserProfileUpdateRequest{
+				UserID: 1,
+				Key:    "nickname",
+				Value:  "NewNickname",
+			},
+			expectedError: nil,
+			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
+				mockUserRepo.On("FindByID", 1).Return(&database.User{}, nil)
+				mockUserRepo.On("UpdateProfile", 1, "nickname", "NewNickname").Return(nil)
+			},
+		},
+		{
+			name: "successful profile update - unknown field",
+			req: &UserProfileUpdateRequest{
+				UserID: 1,
+				Key:    "unknown_field",
+				Value:  "some value",
+			},
+			expectedError: nil,
+			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
+				mockUserRepo.On("FindByID", 1).Return(&database.User{}, nil)
+				mockUserRepo.On("UpdateProfile", 1, "unknown_field", "some value").Return(nil)
+			},
 		},
 		{
 			name: "profile update fails - update profile error",
@@ -197,7 +210,7 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 			},
 			expectedError: errors.New("failed to update user profile: db error"),
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{ID: 1, Username: "testuser"}, nil)
+				mockUserRepo.On("FindByID", 1).Return(&database.User{}, nil)
 				mockUserRepo.On("UpdateProfile", 1, "nickname", "New Nickname").Return(errors.New("db error"))
 			},
 		},
@@ -207,7 +220,7 @@ func TestUserServiceImpl_UpdateUserProfile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
-			userService := NewUserService(mockUserRepo, mockRateLimitRepo)
+			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
 
@@ -244,8 +257,9 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 			},
 			expectedError: nil,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
+				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
+				mockRateLimitRepo.On("TrackLoginAttempt", "1", true).Return(nil)
 				mockUserRepo.On("DeleteUser", 1).Return(nil)
 			},
 		},
@@ -257,8 +271,8 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 			},
 			expectedError: ErrInvalidPassword,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
+				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
 				mockRateLimitRepo.On("TrackLoginAttempt", "1", false).Return(nil)
 			},
 		},
@@ -268,10 +282,22 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 				UserID:   999,
 				Password: "password123",
 			},
-			expectedError: ErrInvalidPassword, // Changed to prevent user enumeration
+			expectedError: ErrInvalidPassword,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 999).Return(nil, errors.New("user not found"))
+				mockRateLimitRepo.On("CheckAccountLocked", "999").Return(false, nil)
+				mockUserRepo.On("FindByID", 999).Return(nil, errors.New("not found"))
 				mockRateLimitRepo.On("TrackLoginAttempt", "999", false).Return(nil)
+			},
+		},
+		{
+			name: "deletion fails - account locked",
+			req: &DeleteUserRequest{
+				UserID:   1,
+				Password: "password123",
+			},
+			expectedError: ErrAccountLocked,
+			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
+				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(true, nil)
 			},
 		},
 		{
@@ -283,26 +309,13 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 			expectedError: ErrInvalidInput,
 			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
 		},
-		{
-			name: "deletion fails - delete error",
-			req: &DeleteUserRequest{
-				UserID:   1,
-				Password: "password123",
-			},
-			expectedError: errors.New("failed to delete user: db error"),
-			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
-				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
-				mockUserRepo.On("DeleteUser", 1).Return(errors.New("db error"))
-			},
-		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
-			userService := NewUserService(mockUserRepo, mockRateLimitRepo)
+			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
 
@@ -310,7 +323,7 @@ func TestUserServiceImpl_DeleteUser(t *testing.T) {
 
 			if tt.expectedError != nil {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError.Error())
+				assert.Equal(t, tt.expectedError, err)
 			} else {
 				assert.NoError(t, err)
 			}
@@ -326,7 +339,7 @@ func TestUserServiceImpl_CheckAccountLocked(t *testing.T) {
 	mockUserRepo := new(database.MockUserRepository)
 	mockRateLimitRepo := new(database.MockRateLimitRepository)
 
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo)
+	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 	tests := []struct {
 		name             string
@@ -365,7 +378,7 @@ func TestUserServiceImpl_CheckAccountLocked(t *testing.T) {
 	}
 
 	t.Run("rate limit repo is nil", func(t *testing.T) {
-		userServiceWithNilRepo := NewUserService(mockUserRepo, nil)
+		userServiceWithNilRepo := NewUserService(mockUserRepo, nil, 128, 500, 255, 255)
 		isLocked := userServiceWithNilRepo.CheckAccountLocked("anyuser")
 		assert.False(t, isLocked)
 	})
@@ -376,7 +389,7 @@ func TestUserServiceImpl_CheckUserExists(t *testing.T) {
 	mockUserRepo := new(database.MockUserRepository)
 	mockRateLimitRepo := new(database.MockRateLimitRepository)
 
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo)
+	userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 255)
 
 	tests := []struct {
 		name          string
@@ -456,7 +469,6 @@ func TestUserServiceImpl_ChangeUserPassword(t *testing.T) {
 				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
 				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
 				mockUserRepo.On("UpdatePassword", 1, mock.AnythingOfType("string")).Return(nil)
-				mockRateLimitRepo.On("TrackLoginAttempt", "1", true).Return(nil)
 			},
 		},
 		{
@@ -480,10 +492,23 @@ func TestUserServiceImpl_ChangeUserPassword(t *testing.T) {
 				OldPassword: "oldpassword",
 				NewPassword: "newpassword123",
 			},
-			expectedError: ErrInvalidPassword, // Changed to prevent user enumeration
+			expectedError: ErrInvalidPassword,
 			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 999).Return(nil, errors.New("user not found"))
+				mockUserRepo.On("FindByID", 999).Return(nil, errors.New("not found"))
 				mockRateLimitRepo.On("TrackLoginAttempt", "999", false).Return(nil)
+			},
+		},
+		{
+			name: "password change fails - account locked",
+			req: &ChangePasswordRequest{
+				UserID:      1,
+				OldPassword: "oldpassword",
+				NewPassword: "newpassword123",
+			},
+			expectedError: ErrAccountLocked,
+			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
+				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
+				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(true, nil)
 			},
 		},
 		{
@@ -511,24 +536,10 @@ func TestUserServiceImpl_ChangeUserPassword(t *testing.T) {
 			req: &ChangePasswordRequest{
 				UserID:      1,
 				OldPassword: "oldpassword",
-				NewPassword: string(make([]byte, ALLOW_MAX_LENGTH_OF_PASSWORD+1)),
+				NewPassword: string(make([]byte, 200)),
 			},
 			expectedError: ErrPasswordExceedsMaxLength,
 			setupMocks:    func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {},
-		},
-		{
-			name: "password change fails - update password error",
-			req: &ChangePasswordRequest{
-				UserID:      1,
-				OldPassword: "oldpassword",
-				NewPassword: "newpassword123",
-			},
-			expectedError: errors.New("failed to update password: db error"),
-			setupMocks: func(mockUserRepo *database.MockUserRepository, mockRateLimitRepo *database.MockRateLimitRepository) {
-				mockUserRepo.On("FindByID", 1).Return(&database.User{PasswordHash: string(hashedPassword)}, nil)
-				mockRateLimitRepo.On("CheckAccountLocked", "1").Return(false, nil)
-				mockUserRepo.On("UpdatePassword", 1, mock.AnythingOfType("string")).Return(errors.New("db error"))
-			},
 		},
 	}
 
@@ -536,7 +547,7 @@ func TestUserServiceImpl_ChangeUserPassword(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockUserRepo := new(database.MockUserRepository)
 			mockRateLimitRepo := new(database.MockRateLimitRepository)
-			userService := NewUserService(mockUserRepo, mockRateLimitRepo)
+			userService := NewUserService(mockUserRepo, mockRateLimitRepo, 128, 500, 255, 10)
 
 			tt.setupMocks(mockUserRepo, mockRateLimitRepo)
 
@@ -544,99 +555,13 @@ func TestUserServiceImpl_ChangeUserPassword(t *testing.T) {
 
 			if tt.expectedError != nil {
 				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError.Error())
+				assert.Equal(t, tt.expectedError, err)
 			} else {
 				assert.NoError(t, err)
 			}
 
 			mockUserRepo.AssertExpectations(t)
 			mockRateLimitRepo.AssertExpectations(t)
-		})
-	}
-}
-
-// TestUserServiceImpl_GetUserBasicInfo tests the GetUserBasicInfo method
-func TestUserServiceImpl_GetUserBasicInfo(t *testing.T) {
-	mockUserRepo := new(database.MockUserRepository)
-	mockRateLimitRepo := new(database.MockRateLimitRepository)
-
-	userService := NewUserService(mockUserRepo, mockRateLimitRepo)
-
-	tests := []struct {
-		name          string
-		userID        int
-		expectedInfo  *database.UserBasicInfo
-		expectedError error
-		setupMocks    func()
-	}{
-		{
-			name:   "successful basic info retrieval",
-			userID: 1,
-			expectedInfo: &database.UserBasicInfo{
-				Username: "testuser",
-				Nickname: "Test User",
-			},
-			expectedError: nil,
-			setupMocks: func() {
-				mockUserRepo.On("ExistsByID", 1).Return(true, nil)
-				mockUserRepo.On("GetUserBasicInfo", 1).Return(&database.UserBasicInfo{
-					Username: "testuser",
-					Nickname: "Test User",
-				}, nil)
-			},
-		},
-		{
-			name:          "user not found",
-			userID:        999,
-			expectedInfo:  nil,
-			expectedError: ErrInvalidPassword, // Changed to prevent user enumeration
-			setupMocks: func() {
-				mockUserRepo.On("ExistsByID", 999).Return(false, nil)
-			},
-		},
-		{
-			name:          "error checking user existence",
-			userID:        2,
-			expectedInfo:  nil,
-			expectedError: errors.New("failed to check user existence: db error"),
-			setupMocks: func() {
-				mockUserRepo.On("ExistsByID", 2).Return(false, errors.New("db error"))
-			},
-		},
-		{
-			name:          "error retrieving basic info",
-			userID:        3,
-			expectedInfo:  nil,
-			expectedError: errors.New("failed to get user basic info: db error"),
-			setupMocks: func() {
-				mockUserRepo.On("ExistsByID", 3).Return(true, nil)
-				mockUserRepo.On("GetUserBasicInfo", 3).Return(nil, errors.New("db error"))
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.setupMocks()
-
-			info, err := userService.GetUserBasicInfo(context.Background(), tt.userID)
-
-			if tt.expectedInfo != nil {
-				assert.NotNil(t, info)
-				assert.Equal(t, tt.expectedInfo.Username, info.Username)
-				assert.Equal(t, tt.expectedInfo.Nickname, info.Nickname)
-			} else {
-				assert.Nil(t, info)
-			}
-
-			if tt.expectedError != nil {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), tt.expectedError.Error())
-			} else {
-				assert.NoError(t, err)
-			}
-
-			mockUserRepo.AssertExpectations(t)
 		})
 	}
 }

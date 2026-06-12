@@ -14,7 +14,11 @@ import (
 // TestTokenServiceImpl_GenerateJWT tests the GenerateJWT method
 func TestTokenServiceImpl_GenerateJWT(t *testing.T) {
 	mockTokenRepo := new(database.MockTokenRepository)
-	tokenService := NewTokenService(mockTokenRepo, "test-secret", "test-issuer")
+	jwtConfig := JWTConfig{
+		Secret: "test-secret",
+	}
+
+	tokenService := NewTokenService(jwtConfig, mockTokenRepo)
 
 	tests := []struct {
 		name           string
@@ -72,7 +76,11 @@ func TestTokenServiceImpl_GenerateJWT(t *testing.T) {
 // TestTokenServiceImpl_GenerateVerificationToken tests the GenerateVerificationToken method
 func TestTokenServiceImpl_GenerateVerificationToken(t *testing.T) {
 	mockTokenRepo := new(database.MockTokenRepository)
-	tokenService := NewTokenService(mockTokenRepo, "test-secret", "test-issuer")
+	jwtConfig := JWTConfig{
+		Secret: "test-secret",
+	}
+
+	tokenService := NewTokenService(jwtConfig, mockTokenRepo)
 
 	tests := []struct {
 		name          string
@@ -109,7 +117,11 @@ func TestTokenServiceImpl_GenerateVerificationToken(t *testing.T) {
 // TestTokenServiceImpl_StoreVerificationToken tests the StoreVerificationToken method
 func TestTokenServiceImpl_StoreVerificationToken(t *testing.T) {
 	mockTokenRepo := new(database.MockTokenRepository)
-	tokenService := NewTokenService(mockTokenRepo, "test-secret", "test-issuer")
+	jwtConfig := JWTConfig{
+		Secret: "test-secret",
+	}
+
+	tokenService := NewTokenService(jwtConfig, mockTokenRepo)
 
 	tests := []struct {
 		name        string
@@ -159,7 +171,11 @@ func TestTokenServiceImpl_StoreVerificationToken(t *testing.T) {
 // TestTokenServiceImpl_ValidateAndConsumeToken tests the ValidateAndConsumeToken method
 func TestTokenServiceImpl_ValidateAndConsumeToken(t *testing.T) {
 	mockTokenRepo := new(database.MockTokenRepository)
-	tokenService := NewTokenService(mockTokenRepo, "test-secret", "test-issuer")
+	jwtConfig := JWTConfig{
+		Secret: "test-secret",
+	}
+
+	tokenService := NewTokenService(jwtConfig, mockTokenRepo)
 
 	tests := []struct {
 		name          string

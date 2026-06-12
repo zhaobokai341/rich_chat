@@ -34,13 +34,6 @@ var (
 	DB_SSL  string // database ssl mode - loaded from environment
 )
 
-const (
-	MAXOPENCONNS    = 25              // maximum number of open connections to the database
-	MAXIDLECONNS    = 10              // maximum number of idle connections to the database
-	CONNMAXLIFETIME = 5 * time.Minute // maximum amount of time a connection may be reused
-	CONNMAXIDLETIME = 5 * time.Minute // maximum amount of time a connection may be idle
-)
-
 // Redis configuration variables
 var (
 	REDIS_HOST     string // Redis host - loaded from environment
@@ -49,16 +42,36 @@ var (
 	REDIS_DB       int    // Redis database number - loaded from environment
 )
 
+// JWT configuration
 const (
-	CACHE_TTL      = 300 // Cache TTL in seconds (5 minutes)
-	CACHE_NULL_TTL = 60  // Cache TTL for null values in seconds (1 minute)
+	JWT_EXPIRE_TIME          = time.Hour * 24     // 24 hours (changed from 30 days for security)
+	JWT_REFRESH_EXPIRE_TIME  = time.Hour * 24 * 7 // 7 days for refresh token
+	VERIFY_TOKEN_EXPIRE_TIME = time.Minute * 5    // Verification token expire time (5 minutes)
 )
 
-// Rate limiting configuration variables
+// RSA/E2EE configuration
 const (
-	IP_LIMIT_TIME             = time.Minute * 10 // Time window for IP rate linking (1 minute)
+	RSA_KEY_SIZE = 4096 // RSA key size in bits (increased from 2048 for security)
+)
+
+// Rate limiting configuration
+const (
+	MAX_LOGIN_ATTEMPTS        = 5                // Maximum login attempts before lockout
+	LOCKOUT_DURATION          = time.Minute * 15 // Account lockout duration after max attempts
+	IP_LIMIT_TIME             = time.Minute * 10 // Time window for IP rate limiting
 	IP_LIMIT_VISIT_TIMES      = 1000             // Maximum visits per IP within IP_LIMIT_TIME
-	IP_LIMIT_LOCKOUT_DURATION = time.Minute * 10 // IP lockout duration after IP_LIMIT_VISIT_TIMES
+	IP_LIMIT_LOCKOUT_DURATION = time.Minute * 10 // IP lockout duration
+)
+
+// Cache configuration
+const (
+	CACHE_TTL                = 300 // Cache TTL in seconds (5 minutes)
+	CACHE_NULL_TTL           = 60  // Cache TTL for null values in seconds (1 minute)
+	CACHE_USER_PROFILE_TTL   = 600 // User profile cache TTL (10 minutes)
+	CACHE_USER_BASIC_TTL     = 900 // User basic info cache TTL (15 minutes)
+	CACHE_USER_EXISTS_TTL    = 300 // User existence cache TTL (5 minutes)
+	CACHE_IP_BLOCKED_TTL     = 60  // IP blocked status cache TTL (1 minute)
+	CACHE_IP_NOT_BLOCKED_TTL = 60  // IP not blocked negative cache TTL (1 minute)
 )
 
 // User input validation constants
@@ -72,19 +85,23 @@ const (
 
 // Other constants
 const (
-	ALLOW_USER_AGENT         = "rich_chat"         // allow user agent visit api
-	JWT_EXPIRE_TIME          = time.Hour * 24 * 30 // 30 days, about 1 month
-	VERIFY_TOKEN_EXPIRE_TIME = time.Minute * 5     // Verification token expire time (5 minutes)
-	MAX_LOGIN_ATTEMPTS       = 5                   // Maximum login attempts before lockout
-	LOCKOUT_DURATION         = time.Minute * 15    // Account lockout duration after max attempts
+	ALLOW_USER_AGENT = "rich_chat" // allow user agent visit api
 )
 
 // WebSocket configuration constants
 const (
 	WEBSOCKET_WRITE_WAIT       = 10 * time.Second // Time allowed to write a message to the peer
 	WEBSOCKET_PONG_WAIT        = 60 * time.Second // Time allowed to read the next pong message from the peer
-	WEBSOCKET_PING_PERIOD      = 54 * time.Second // Send pings to peer with this period (should be less than pong wait: (60 * 9) / 10 = 54)
+	WEBSOCKET_PING_PERIOD      = 54 * time.Second // Send pings to peer (should be less than pong wait)
 	WEBSOCKET_MAX_MESSAGE_SIZE = 5120             // Maximum message size allowed from peer (5KB)
+)
+
+// Database connection pool configuration
+const (
+	DB_MAX_OPEN_CONNS     = 25              // maximum number of open connections to the database
+	DB_MAX_IDLE_CONNS     = 10              // maximum number of idle connections to the database
+	DB_CONN_MAX_LIFETIME  = 5 * time.Minute // maximum amount of time a connection may be reused
+	DB_CONN_MAX_IDLE_TIME = 5 * time.Minute // maximum amount of time a connection may be idle
 )
 
 // LoadConfig loads configuration from environment variables

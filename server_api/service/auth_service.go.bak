@@ -16,7 +16,6 @@ import (
 type AuthConfig struct {
 	MaxUsernameLength int
 	VerifyTokenTTL    time.Duration
-	JWTExpiration     time.Duration
 }
 
 // AuthServiceImpl implements AuthService
@@ -34,9 +33,6 @@ func NewAuthService(
 	tokenService TokenService,
 	config AuthConfig,
 ) *AuthServiceImpl {
-	if config.JWTExpiration == 0 {
-		config.JWTExpiration = JWT_EXPIRE_TIME
-	}
 	return &AuthServiceImpl{
 		userRepo:      userRepo,
 		rateLimitRepo: rateLimitRepo,
@@ -103,7 +99,7 @@ func (s *AuthServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 	_ = s.userRepo.UpdateLastLogin(user.ID)
 
 	// Generate JWT token
-	token, err := s.tokenService.GenerateJWT(user.ID, s.config.JWTExpiration)
+	token, err := s.tokenService.GenerateJWT(user.ID, 30*24*time.Hour) // 30 days
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id": user.ID,
@@ -131,13 +127,9 @@ func (s *AuthServiceImpl) Register(ctx context.Context, req *RegisterRequest) (*
 	}
 
 	// Validate username length
-	maxLen := s.config.MaxUsernameLength
-	if maxLen == 0 {
-		maxLen = ALLOW_MAX_LENGTH_OF_USERNAME
-	}
-	if len(req.Username) > maxLen {
+	if len(req.Username) > s.config.MaxUsernameLength {
 		return nil, fmt.Errorf("%w: username must be less than %d characters",
-			ErrInvalidInput, maxLen)
+			ErrInvalidInput, s.config.MaxUsernameLength)
 	}
 
 	// Check if username already exists
@@ -180,7 +172,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, req *RegisterRequest) (*
 	}
 
 	// Generate JWT token
-	token, err := s.tokenService.GenerateJWT(userID, s.config.JWTExpiration)
+	token, err := s.tokenService.GenerateJWT(userID, 30*24*time.Hour) // 30 days
 	if err != nil {
 		log.WithFields(log.Fields{
 			"user_id": userID,
@@ -202,7 +194,7 @@ func (s *AuthServiceImpl) Register(ctx context.Context, req *RegisterRequest) (*
 
 // GenerateToken generates a JWT token for a user
 func (s *AuthServiceImpl) GenerateToken(userID int) (string, error) {
-	return s.tokenService.GenerateJWT(userID, s.config.JWTExpiration)
+	return s.tokenService.GenerateJWT(userID, 30*24*time.Hour)
 }
 
 // GenerateVerifyToken generates a verification token

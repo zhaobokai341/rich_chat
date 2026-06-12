@@ -21,7 +21,6 @@ var (
 	ErrBioExceedsMaxLength      = errors.New("bio exceeds maximum length")
 	ErrInvalidNicknameFormat    = errors.New("invalid nickname format")
 	ErrPasswordExceedsMaxLength = errors.New("password exceeds maximum length")
-	ErrUnauthorized             = errors.New("unauthorized access")
 )
 
 // LoginRequest represents login credentials
@@ -194,11 +193,6 @@ type SessionInfo struct {
 	MemberCount int        `json:"member_count"`
 	PartnerID   int        `json:"partner_id,omitempty"`   // For direct chats: the other participant's ID
 	PartnerName string     `json:"partner_name,omitempty"` // For direct chats: the other participant's name
-}
-
-// OnlineStatusChecker checks if a user is currently connected via WebSocket
-type OnlineStatusChecker interface {
-	IsUserOnline(userID int) bool
 }
 
 // ChatService defines chat operations with E2EE support

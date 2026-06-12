@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestChatRepositoryAdapter(t *testing.T) {
+func TestPostgresChatRepository(t *testing.T) {
 	t.Run("Interface Implementation", func(t *testing.T) {
-		// Verify that chatRepositoryAdapter implements ChatRepository
-		var _ ChatRepository = (*chatRepositoryAdapter)(nil)
+		// Verify that PostgresChatRepository implements ChatRepository
+		var _ ChatRepository = (*PostgresChatRepository)(nil)
 
 		// Just verify the constructor exists and is accessible
-		assert.NotNil(t, NewChatRepositoryAdapter)
+		assert.NotNil(t, NewPostgresChatRepository)
 	})
 }
 
@@ -57,18 +57,17 @@ func TestChatRepositoryInterfaceMethods(t *testing.T) {
 		var storeEncryptedMessageFunc func(context.Context, *EncryptedMessage) error
 		var markMessageAsReadByUserFunc func(context.Context, int, int) error
 
-		// Create mock implementations for signature checking
-		mockReader := &MockChatReader{}
-		mockWriter := &MockChatWriter{}
-		adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
-
 		// Assign the interface methods to these function variables
-		createChatSessionFunc = adapter.CreateChatSession
-		getUserChatSessionsFunc = adapter.GetUserChatSessions
-		createMessageIndexFunc = adapter.CreateMessageIndex
-		getMessagesForSessionFunc = adapter.GetMessagesForSession
-		storeEncryptedMessageFunc = adapter.StoreEncryptedMessage
-		markMessageAsReadByUserFunc = adapter.MarkMessageAsReadByUser
+		// This verifies that the signatures match
+		repo := &PostgresChatRepository{} // Using zero value for signature checking only
+
+		// We're not calling these, just assigning to verify signatures match
+		createChatSessionFunc = repo.CreateChatSession
+		getUserChatSessionsFunc = repo.GetUserChatSessions
+		createMessageIndexFunc = repo.CreateMessageIndex
+		getMessagesForSessionFunc = repo.GetMessagesForSession
+		storeEncryptedMessageFunc = repo.StoreEncryptedMessage
+		markMessageAsReadByUserFunc = repo.MarkMessageAsReadByUser
 
 		// Verify functions are assigned (this should always pass if signatures match)
 		assert.NotNil(t, createChatSessionFunc)
@@ -120,9 +119,7 @@ func TestE2EEModels(t *testing.T) {
 
 func TestE2EEInterfaceMethods(t *testing.T) {
 	t.Run("E2EE Key Management Method Signatures", func(t *testing.T) {
-		mockReader := &MockChatReader{}
-		mockWriter := &MockChatWriter{}
-		adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+		repo := &PostgresChatRepository{}
 
 		// Verify E2EE key management methods exist with correct signatures
 		var storeUserKeyFunc func(context.Context, *UserKey) error
@@ -131,11 +128,11 @@ func TestE2EEInterfaceMethods(t *testing.T) {
 		var updateUserKeyFunc func(context.Context, *UserKey) error
 		var deactivateUserKeyFunc func(context.Context, int) error
 
-		storeUserKeyFunc = adapter.StoreUserKey
-		getUserKeyFunc = adapter.GetUserKey
-		getUserPublicKeyFunc = adapter.GetUserPublicKey
-		updateUserKeyFunc = adapter.UpdateUserKey
-		deactivateUserKeyFunc = adapter.DeactivateUserKey
+		storeUserKeyFunc = repo.StoreUserKey
+		getUserKeyFunc = repo.GetUserKey
+		getUserPublicKeyFunc = repo.GetUserPublicKey
+		updateUserKeyFunc = repo.UpdateUserKey
+		deactivateUserKeyFunc = repo.DeactivateUserKey
 
 		assert.NotNil(t, storeUserKeyFunc)
 		assert.NotNil(t, getUserKeyFunc)
@@ -145,9 +142,7 @@ func TestE2EEInterfaceMethods(t *testing.T) {
 	})
 
 	t.Run("E2EE Offline Message Method Signatures", func(t *testing.T) {
-		mockReader := &MockChatReader{}
-		mockWriter := &MockChatWriter{}
-		adapter := NewChatRepositoryAdapter(mockReader, mockWriter)
+		repo := &PostgresChatRepository{}
 
 		// Verify E2EE offline message methods exist with correct signatures
 		var storeOfflineMsgFunc func(context.Context, *OfflineEncryptedMessage) (int, error)
@@ -156,11 +151,11 @@ func TestE2EEInterfaceMethods(t *testing.T) {
 		var deleteOfflineMsgFunc func(context.Context, int) error
 		var getUndeliveredCountFunc func(context.Context, int) (int, error)
 
-		storeOfflineMsgFunc = adapter.StoreOfflineEncryptedMessage
-		getUndeliveredMsgsFunc = adapter.GetUndeliveredOfflineMessages
-		markDeliveredFunc = adapter.MarkOfflineMessageDelivered
-		deleteOfflineMsgFunc = adapter.DeleteOfflineMessage
-		getUndeliveredCountFunc = adapter.GetUndeliveredMessageCount
+		storeOfflineMsgFunc = repo.StoreOfflineEncryptedMessage
+		getUndeliveredMsgsFunc = repo.GetUndeliveredOfflineMessages
+		markDeliveredFunc = repo.MarkOfflineMessageDelivered
+		deleteOfflineMsgFunc = repo.DeleteOfflineMessage
+		getUndeliveredCountFunc = repo.GetUndeliveredMessageCount
 
 		assert.NotNil(t, storeOfflineMsgFunc)
 		assert.NotNil(t, getUndeliveredMsgsFunc)
@@ -172,10 +167,8 @@ func TestE2EEInterfaceMethods(t *testing.T) {
 
 func TestChatRepositoryImplementsInterface(t *testing.T) {
 	t.Run("Complete Interface Compliance", func(t *testing.T) {
-		// This test verifies that chatRepositoryAdapter fully implements ChatRepository
-		mockReader := &MockChatReader{}
-		mockWriter := &MockChatWriter{}
-		var repo ChatRepository = NewChatRepositoryAdapter(mockReader, mockWriter)
+		// This test verifies that PostgresChatRepository fully implements ChatRepository
+		var repo ChatRepository = &PostgresChatRepository{}
 		assert.NotNil(t, repo)
 
 		// Verify all methods are accessible through the interface

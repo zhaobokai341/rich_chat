@@ -178,15 +178,3 @@ func (m *MockChatService) StoreOfflineEncryptedMessage(ctx context.Context, offl
 	args := m.Called(ctx, offlineMsg)
 	return args.Int(0), args.Error(1)
 }
-
-// MockOnlineStatusChecker is a mock implementation of OnlineStatusChecker for testing
-type MockOnlineStatusChecker struct {
-	IsUserOnlineFunc func(userID int) bool
-}
-
-func (m *MockOnlineStatusChecker) IsUserOnline(userID int) bool {
-	if m.IsUserOnlineFunc != nil {
-		return m.IsUserOnlineFunc(userID)
-	}
-	return false
-}
