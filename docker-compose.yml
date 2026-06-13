@@ -1,0 +1,86 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: rich_chat_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: rich_chat
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./script/database_configure/users_schema.sql:/docker-entrypoint-initdb.d/01_users_schema.sql
+      - ./script/database_configure/chat_schema.sql:/docker-entrypoint-initdb.d/02_chat_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    container_name: rich_chat_redis
+    restart: unless-stopped
+    command: redis-server --requirepass 123456
+    ports:
+      - "5350:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Server API
+  server_api:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    container_name: rich_chat_server
+    restart: unless-stopped
+    ports:
+      - "2316:2316"
+    environment:
+      - JWT_SECRET=your-secret-key-change-in-production-min-32-chars
+      - AUTH_USERNAME=admin
+      - AUTH_PASSWORD=change-this-password-to-strong-one
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=123456
+      - DB_NAME=rich_chat
+      - DB_SSL=disable
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=123456
+      - REDIS_DB=0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server_api/.env:/app/.env
+
+  # Web Frontend
+  server_web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: rich_chat_web
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - server_api
+
+volumes:
+  postgres_data:
+  redis_data:

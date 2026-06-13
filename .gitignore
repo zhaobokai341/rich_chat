@@ -6,7 +6,8 @@
 
 # General
 draft/
-something/
+quick_search/
+debug/
 client/config
 client/rich_chat_client
 server_api/rich_chat_server

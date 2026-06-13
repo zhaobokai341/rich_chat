@@ -1,0 +1,37 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# Docker
+Dockerfile.*
+docker-compose.yml
+.dockerignore
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build outputs
+*.exe
+*.out
+coverage.out
+
+# Environment files (keep examples only)
+.env
+!*.example
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/

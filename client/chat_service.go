@@ -246,35 +246,39 @@ type WebSocketClient struct {
 	mu            sync.Mutex
 	messages      chan *ChatMessage
 	done          chan struct{}
+	closeOnce     *sync.Once // Ensures done channel is closed only once
 	isConnected   bool
 	currentUserID int
 
 	// Reconnection fields
-	baseURL     string
-	token       string
-	reconnect   bool // Whether to auto-reconnect
-	reconnectMu sync.Mutex
+	baseURL        string
+	token          string
+	reconnect      bool // Whether to auto-reconnect
+	reconnectMu    sync.Mutex
+	reconnecting   bool // Prevent concurrent reconnection attempts
+	reconnectingMu sync.Mutex
 }
 
 // NewWebSocketClient creates a new WebSocket client
 func NewWebSocketClient() *WebSocketClient {
 	return &WebSocketClient{
-		messages: make(chan *ChatMessage, 100),
-		done:     make(chan struct{}),
+		messages:  make(chan *ChatMessage, 100),
+		done:      make(chan struct{}),
+		closeOnce: &sync.Once{},
 	}
 }
 
 // Connect establishes a WebSocket connection
 func (w *WebSocketClient) Connect(baseURL, token string, userID int) error {
 	// Convert http/https to ws/wss
-	var url_schema string
+	var urlSchema string
 	if len(baseURL) >= 7 && baseURL[:7] == "http://" {
-		url_schema = "ws"
+		urlSchema = "ws"
 	} else if len(baseURL) >= 8 && baseURL[:8] == "https://" {
-		url_schema = "wss"
+		urlSchema = "wss"
 	}
 
-	wsURL := fmt.Sprintf("%s://%s:%d", url_schema, URL_DOMAIN, URL_PORT)
+	wsURL := fmt.Sprintf("%s://%s:%d", urlSchema, URL_DOMAIN, URL_PORT)
 
 	wsFullURL := fmt.Sprintf("%s/ws/chat", wsURL)
 
@@ -313,18 +317,47 @@ func (w *WebSocketClient) Connect(baseURL, token string, userID int) error {
 
 	log.Printf("[WebSocket] Successfully connected!")
 
+	w.mu.Lock()
 	w.conn = conn
 	w.isConnected = true
 	w.currentUserID = userID
 	w.baseURL = baseURL
 	w.token = token
 	w.reconnect = true
+	// Reset done channel for reconnection (create a new one if it was closed)
+	w.done = make(chan struct{})
+	// Reset closeOnce for the new connection
+	w.closeOnce = &sync.Once{}
+	w.mu.Unlock()
+
+	// === Ping/Pong Setup ===
+	// Design: Both client and server send pings to each other
+	// - Client pings every 30s → Server responds with pong → Server's PongHandler resets server's ReadDeadline
+	// - Server pings every 54s → Client responds with pong → Client's PongHandler resets client's ReadDeadline
+	// WriteControl is thread-safe and can be called concurrently with NextWriter
+
+	// PongHandler: called when we receive a pong from server (in response to our ping)
+	conn.SetPongHandler(func(appData string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return nil
+	})
+
+	// PingHandler: called when we receive a ping from server
+	// We must respond with pong AND reset read deadline
+	conn.SetPingHandler(func(appData string) error {
+		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		return conn.WriteControl(
+			websocket.PongMessage,
+			[]byte(appData),
+			time.Now().Add(5*time.Second),
+		)
+	})
 
 	// Start reading messages
 	go w.readMessages()
 
-	// Start reconnection monitor
-	go w.reconnectMonitor()
+	// Start ping sender (sends pings to server to keep server's ReadDeadline alive)
+	go w.pingSender()
 
 	return nil
 }
@@ -332,18 +365,20 @@ func (w *WebSocketClient) Connect(baseURL, token string, userID int) error {
 // Close closes the WebSocket connection
 func (w *WebSocketClient) Close() error {
 	w.mu.Lock()
-	defer w.mu.Unlock()
 
-	// Disable reconnection
-	w.reconnectMu.Lock()
+	// Disable reconnection first
 	w.reconnect = false
-	w.reconnectMu.Unlock()
 
 	if w.conn != nil {
 		w.isConnected = false
-		close(w.done)
+		w.mu.Unlock()
+		// Use closeOnce to prevent panic from double close
+		w.closeOnce.Do(func() {
+			close(w.done)
+		})
 		return w.conn.Close()
 	}
+	w.mu.Unlock()
 	return nil
 }
 
@@ -432,156 +467,172 @@ func (w *WebSocketClient) SendOfflineSync() error {
 	return w.conn.WriteJSON(msg)
 }
 
-// readMessages reads messages from the WebSocket connection
-func (w *WebSocketClient) readMessages() {
-	defer func() {
-		w.isConnected = false
-	}()
-
-	// Set up Pong handler to respond to server pings
-	w.conn.SetPongHandler(func(string) error {
-		w.conn.SetReadDeadline(time.Time{})
-		return nil
-	})
-
-	// Set up Ping handler to respond to server pings
-	w.conn.SetPingHandler(func(appData string) error {
-		err := w.conn.WriteMessage(websocket.PongMessage, []byte(appData))
-		if err != nil {
-			return err
-		}
-		w.conn.SetReadDeadline(time.Time{})
-		return nil
-	})
-
-	// Start a goroutine to periodically send pings
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-w.done:
-				return
-			case <-ticker.C:
-				w.mu.Lock()
-				if w.isConnected && w.conn != nil {
-					err := w.conn.WriteMessage(websocket.PingMessage, nil)
-					if err != nil {
-						log.Printf("Failed to send ping: %v", err)
-					}
-				}
-				w.mu.Unlock()
-			}
-		}
-	}()
+// pingSender periodically sends ping messages to keep the connection alive
+func (w *WebSocketClient) pingSender() {
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
 
 	for {
 		select {
 		case <-w.done:
 			return
-		default:
-			w.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
-			_, message, err := w.conn.ReadMessage()
-			if err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-					log.Printf("WebSocket read error: %v", err)
-				} else {
-					log.Printf("WebSocket closed: %v", err)
-				}
+		case <-ticker.C:
+			w.mu.Lock()
+			conn := w.conn
+			connected := w.isConnected
+			w.mu.Unlock()
+
+			if !connected || conn == nil {
 				return
 			}
 
-			// Parse the message
-			var wsMsg map[string]interface{}
-			if err := json.Unmarshal(message, &wsMsg); err != nil {
-				log.Printf("Failed to parse WebSocket message: %v", err)
+			// WriteControl is thread-safe and can be called concurrently with NextWriter
+			err := conn.WriteControl(
+				websocket.PingMessage,
+				nil,
+				time.Now().Add(10*time.Second),
+			)
+			if err != nil {
+				log.Printf("Failed to send ping: %v", err)
+				return
+			}
+		}
+	}
+}
+
+// readMessages reads messages from the WebSocket connection
+func (w *WebSocketClient) readMessages() {
+	defer func() {
+		w.mu.Lock()
+		w.isConnected = false
+		w.mu.Unlock()
+	}()
+
+	// Set initial read deadline (must be longer than server ping interval)
+	// Server sends ping every 54s, we need to respond within 60s
+	w.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+
+	for {
+		_, message, err := w.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
+				log.Printf("WebSocket read error: %v", err)
+			} else {
+				log.Printf("WebSocket closed: %v", err)
+			}
+			return
+		}
+
+		// Parse the message
+		var wsMsg map[string]interface{}
+		if err := json.Unmarshal(message, &wsMsg); err != nil {
+			log.Printf("Failed to parse WebSocket message: %v", err)
+			continue
+		}
+
+		// Handle different message types
+		msgType, _ := wsMsg["type"].(string)
+		switch msgType {
+		case "e2ee_chat", "e2ee_offline_message":
+			content, ok := wsMsg["content"].(map[string]interface{})
+			if !ok {
+				log.Printf("Invalid message content format")
 				continue
 			}
 
-			// Handle different message types
-			msgType, _ := wsMsg["type"].(string)
-			switch msgType {
-			case "e2ee_chat", "e2ee_offline_message":
-				content, ok := wsMsg["content"].(map[string]interface{})
-				if !ok {
-					continue
-				}
+			// Safe type assertions to prevent panic
+			senderID, ok := wsMsg["sender_id"].(float64)
+			if !ok {
+				log.Printf("Missing or invalid sender_id in message")
+				continue
+			}
+			sessionID, ok := wsMsg["session_id"].(float64)
+			if !ok {
+				log.Printf("Missing or invalid session_id in message")
+				continue
+			}
 
-				chatMsg := &ChatMessage{
-					SenderID:  int(wsMsg["sender_id"].(float64)),
-					SessionID: int(wsMsg["session_id"].(float64)),
-				}
+			chatMsg := &ChatMessage{
+				SenderID:  int(senderID),
+				SessionID: int(sessionID),
+			}
 
-				if msgID, ok := content["message_id"].(float64); ok {
-					chatMsg.MessageID = int(msgID)
-				}
-				if esk, ok := content["encrypted_session_key"].(string); ok {
-					chatMsg.EncryptedSessionKey = esk
-				} else if eskBytes, ok := content["encrypted_session_key"].([]interface{}); ok {
-					chatMsg.EncryptedSessionKey = base64.StdEncoding.EncodeToString(interfaceToByteSlice(eskBytes))
-				}
-				if ec, ok := content["encrypted_content"].(string); ok {
-					chatMsg.EncryptedContent = ec
-				} else if ecBytes, ok := content["encrypted_content"].([]interface{}); ok {
-					chatMsg.EncryptedContent = base64.StdEncoding.EncodeToString(interfaceToByteSlice(ecBytes))
-				}
-				if iv, ok := content["iv"].(string); ok {
-					chatMsg.Iv = iv
-				} else if ivBytes, ok := content["iv"].([]interface{}); ok {
-					chatMsg.Iv = base64.StdEncoding.EncodeToString(interfaceToByteSlice(ivBytes))
-				}
-				if at, ok := content["auth_tag"].(string); ok {
-					chatMsg.AuthTag = at
-				} else if atBytes, ok := content["auth_tag"].([]interface{}); ok {
-					chatMsg.AuthTag = base64.StdEncoding.EncodeToString(interfaceToByteSlice(atBytes))
-				}
+			if msgID, ok := content["message_id"].(float64); ok {
+				chatMsg.MessageID = int(msgID)
+			}
+			if esk, ok := content["encrypted_session_key"].(string); ok {
+				chatMsg.EncryptedSessionKey = esk
+			} else if eskBytes, ok := content["encrypted_session_key"].([]interface{}); ok {
+				chatMsg.EncryptedSessionKey = base64.StdEncoding.EncodeToString(interfaceToByteSlice(eskBytes))
+			} else if eskBytes, ok := content["encrypted_session_key"].([]uint8); ok {
+				chatMsg.EncryptedSessionKey = base64.StdEncoding.EncodeToString(eskBytes)
+			}
+			if ec, ok := content["encrypted_content"].(string); ok {
+				chatMsg.EncryptedContent = ec
+			} else if ecBytes, ok := content["encrypted_content"].([]interface{}); ok {
+				chatMsg.EncryptedContent = base64.StdEncoding.EncodeToString(interfaceToByteSlice(ecBytes))
+			} else if ecBytes, ok := content["encrypted_content"].([]uint8); ok {
+				chatMsg.EncryptedContent = base64.StdEncoding.EncodeToString(ecBytes)
+			}
+			if iv, ok := content["iv"].(string); ok {
+				chatMsg.Iv = iv
+			} else if ivBytes, ok := content["iv"].([]interface{}); ok {
+				chatMsg.Iv = base64.StdEncoding.EncodeToString(interfaceToByteSlice(ivBytes))
+			} else if ivBytes, ok := content["iv"].([]uint8); ok {
+				chatMsg.Iv = base64.StdEncoding.EncodeToString(ivBytes)
+			}
+			if at, ok := content["auth_tag"].(string); ok {
+				chatMsg.AuthTag = at
+			} else if atBytes, ok := content["auth_tag"].([]interface{}); ok {
+				chatMsg.AuthTag = base64.StdEncoding.EncodeToString(interfaceToByteSlice(atBytes))
+			} else if atBytes, ok := content["auth_tag"].([]uint8); ok {
+				chatMsg.AuthTag = base64.StdEncoding.EncodeToString(atBytes)
+			}
 
-				// Use blocking send with timeout to prevent message loss
-				select {
-				case w.messages <- chatMsg:
-					// Message sent successfully
-				case <-time.After(5 * time.Second):
-					log.Printf("Message channel full, queuing message to disk")
-					// In a production system, you would queue to disk here
-				}
+			// Use blocking send with timeout to prevent message loss
+			select {
+			case w.messages <- chatMsg:
+				// Message sent successfully
+			case <-time.After(5 * time.Second):
+				log.Printf("Message channel full, dropping message")
+			}
 
-			case "e2ee_offline_notification":
-				content, _ := wsMsg["content"].(map[string]interface{})
-				if content != nil {
-					count, _ := content["message_count"].(float64)
-					status, _ := content["status"].(string)
-					log.Printf("Offline notification: status=%s, count=%.0f", status, count)
-				}
+		case "e2ee_offline_notification":
+			content, _ := wsMsg["content"].(map[string]interface{})
+			if content != nil {
+				count, _ := content["message_count"].(float64)
+				status, _ := content["status"].(string)
+				log.Printf("Offline notification: status=%s, count=%.0f", status, count)
+			}
 
-			case "e2ee_offline_sync_complete":
-				content, _ := wsMsg["content"].(map[string]interface{})
-				if content != nil {
-					count, _ := content["messages_synced"].(float64)
-					log.Printf("Offline sync complete: %d messages synced", int(count))
-				}
+		case "e2ee_offline_sync_complete":
+			content, _ := wsMsg["content"].(map[string]interface{})
+			if content != nil {
+				count, _ := content["messages_synced"].(float64)
+				log.Printf("Offline sync complete: %d messages synced", int(count))
+			}
 
-			case "e2ee_message_sent":
-				content, _ := wsMsg["content"].(map[string]interface{})
-				if content != nil {
-					status, _ := content["status"].(string)
-					log.Printf("Message sent: status=%s", status)
-				}
+		case "e2ee_message_sent":
+			content, _ := wsMsg["content"].(map[string]interface{})
+			if content != nil {
+				status, _ := content["status"].(string)
+				log.Printf("Message sent: status=%s", status)
+			}
 
-			case "e2ee_key_response":
-				content, _ := wsMsg["content"].(map[string]interface{})
-				if content != nil {
-					status, _ := content["status"].(string)
-					if status == "success" {
-						log.Printf("Received public key for user %v", content["user_id"])
-					}
+		case "e2ee_key_response":
+			content, _ := wsMsg["content"].(map[string]interface{})
+			if content != nil {
+				status, _ := content["status"].(string)
+				if status == "success" {
+					log.Printf("Received public key for user %v", content["user_id"])
 				}
+			}
 
-			case "error":
-				content, _ := wsMsg["content"].(map[string]interface{})
-				if content != nil {
-					errMsg, _ := content["error"].(string)
-					log.Printf("Server error: %s", errMsg)
-				}
+		case "error":
+			content, _ := wsMsg["content"].(map[string]interface{})
+			if content != nil {
+				errMsg, _ := content["error"].(string)
+				log.Printf("Server error: %s", errMsg)
 			}
 		}
 	}
@@ -624,6 +675,15 @@ func (w *WebSocketClient) reconnectMonitor() {
 			w.mu.Unlock()
 
 			if !isConnected && w.baseURL != "" && w.token != "" {
+				// Check if already reconnecting
+				w.reconnectingMu.Lock()
+				if w.reconnecting {
+					w.reconnectingMu.Unlock()
+					continue // Another goroutine is handling reconnection
+				}
+				w.reconnecting = true
+				w.reconnectingMu.Unlock()
+
 				log.Printf("[WebSocket] Connection lost, attempting to reconnect in %v...", retryDelay)
 				time.Sleep(retryDelay)
 
@@ -641,6 +701,11 @@ func (w *WebSocketClient) reconnectMonitor() {
 					log.Printf("[WebSocket] Reconnected successfully!")
 					retryDelay = 1 * time.Second // Reset retry delay on success
 				}
+
+				// Release reconnecting lock
+				w.reconnectingMu.Lock()
+				w.reconnecting = false
+				w.reconnectingMu.Unlock()
 			} else if isConnected {
 				retryDelay = 1 * time.Second // Reset retry delay when connected
 			}
@@ -694,7 +759,13 @@ func NewChatService(apiClient ChatAPIClientInterface, configMgr ConfigManager, l
 // Connect connects to the WebSocket server
 func (s *ChatService) Connect(token string, userID int) error {
 	s.wsClient = NewWebSocketClient()
-	return s.wsClient.Connect(url_root, token, userID)
+	err := s.wsClient.Connect(url_root, token, userID)
+	if err != nil {
+		return err
+	}
+	// Start reconnection monitor (only once during initial connection)
+	go s.wsClient.reconnectMonitor()
+	return nil
 }
 
 // Disconnect disconnects from the WebSocket server
@@ -798,8 +869,8 @@ func (s *ChatService) GenerateAndUploadKeys(userID int, token string, verifyToke
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Generate RSA-2048 key pair
-	privateKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	// Generate RSA-4096 key pair (consistent with server default)
+	privateKey, err := rsa.GenerateKey(rand.Reader, 4096)
 	if err != nil {
 		return fmt.Errorf(s.languagePack.Get("key_generation_failed"), err)
 	}
@@ -829,7 +900,7 @@ func (s *ChatService) GenerateAndUploadKeys(userID int, token string, verifyToke
 	}
 
 	// Upload public key to server
-	err = s.apiClient.StoreUserKey(userID, token, string(publicKeyPEM), nil, "RSA-2048", verifyToken)
+	err = s.apiClient.StoreUserKey(userID, token, string(publicKeyPEM), nil, "RSA-4096", verifyToken)
 	if err != nil {
 		return fmt.Errorf(s.languagePack.Get("key_upload_failed"), err)
 	}

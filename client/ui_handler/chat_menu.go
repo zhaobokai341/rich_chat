@@ -88,11 +88,6 @@ func (h *UIHandler) handleNewChat(userID int, token string) {
 		return
 	}
 
-	if recipientID == userID {
-		h.printWarning("cannot_chat_yourself")
-		return
-	}
-
 	h.printInfo("getting_user_info")
 	verifyToken, err := h.apiClient.GetVerifyToken()
 	if err != nil {

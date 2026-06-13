@@ -44,6 +44,7 @@ CREATE INDEX IF NOT EXISTS idx_message_index_sent_at_desc_col ON message_index(s
 CREATE TABLE IF NOT EXISTS encrypted_messages (
     message_id INTEGER PRIMARY KEY REFERENCES message_index(id) ON DELETE CASCADE,
     encrypted_content TEXT NOT NULL, -- AES-256-GCM encrypted content
+    encrypted_session_key BYTEA, -- Session key encrypted with recipient's public key (for offline retrieval)
     encryption_key_id VARCHAR(100), -- reference to which key was used for encryption
     iv BYTEA NOT NULL, -- initialization vector for AES decryption
     auth_tag BYTEA NOT NULL, -- authentication tag for AES-GCM

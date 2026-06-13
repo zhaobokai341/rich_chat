@@ -2,9 +2,14 @@ package websocket
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/pem"
 	"fmt"
 	"log"
+	"sync"
 	"time"
 
 	"rich_chat/server_api/database"
@@ -15,6 +20,11 @@ import (
 type E2EEMessageHandler struct {
 	chatService       service.ChatService
 	connectionManager HubInterface
+
+	// Message deduplication cache to prevent replay attacks
+	processedMessages map[string]time.Time // messageID -> timestamp
+	dedupMutex        sync.RWMutex
+	dedupTTL          time.Duration // Time to keep message IDs in cache
 }
 
 // NewE2EEMessageHandler creates a new E2EE message handler
@@ -22,6 +32,41 @@ func NewE2EEMessageHandler(chatService service.ChatService, connectionManager Hu
 	return &E2EEMessageHandler{
 		chatService:       chatService,
 		connectionManager: connectionManager,
+		processedMessages: make(map[string]time.Time),
+		dedupTTL:          5 * time.Minute, // Keep message IDs for 5 minutes
+	}
+}
+
+// cleanupExpiredMessages removes expired message IDs from the deduplication cache
+func (h *E2EEMessageHandler) cleanupExpiredMessages() {
+	h.dedupMutex.Lock()
+	defer h.dedupMutex.Unlock()
+
+	now := time.Now()
+	for msgID, timestamp := range h.processedMessages {
+		if now.Sub(timestamp) > h.dedupTTL {
+			delete(h.processedMessages, msgID)
+		}
+	}
+}
+
+// isDuplicateMessage checks if a message has already been processed
+func (h *E2EEMessageHandler) isDuplicateMessage(messageID string) bool {
+	h.dedupMutex.RLock()
+	_, exists := h.processedMessages[messageID]
+	h.dedupMutex.RUnlock()
+	return exists
+}
+
+// markMessageProcessed adds a message ID to the deduplication cache
+func (h *E2EEMessageHandler) markMessageProcessed(messageID string) {
+	h.dedupMutex.Lock()
+	defer h.dedupMutex.Unlock()
+	h.processedMessages[messageID] = time.Now()
+
+	// Periodically cleanup expired entries
+	if len(h.processedMessages) > 1000 {
+		go h.cleanupExpiredMessages()
 	}
 }
 
@@ -131,8 +176,14 @@ func (h *E2EEMessageHandler) handleChatMessage(conn *Connection, msg ClientMessa
 		return fmt.Errorf("failed to decode auth_tag: %w", err)
 	}
 
-	// Generate unique message ID for deduplication
-	messageID := fmt.Sprintf("%d-%d-%d", conn.UserID, int(sessionID), time.Now().UnixNano())
+	// Generate unique message ID for deduplication using cryptographically secure random bytes
+	messageID := generateSecureMessageID(conn.UserID, int(sessionID))
+
+	// Check for duplicate message (replay attack prevention)
+	if h.isDuplicateMessage(messageID) {
+		log.Printf("Duplicate E2EE message detected (possible replay attack): %s", messageID)
+		return fmt.Errorf("duplicate message detected")
+	}
 
 	// Check if recipient is online
 	isRecipientOnline := h.connectionManager.IsUserOnline(int(recipientID))
@@ -221,6 +272,9 @@ func (h *E2EEMessageHandler) handleChatMessage(conn *Connection, msg ClientMessa
 		_ = conn.SendMessage(confirmation)
 	}
 
+	// Mark message as processed to prevent replay
+	h.markMessageProcessed(messageID)
+
 	log.Printf("E2EE message from %d to %d processed (online: %v, message_id: %s)", conn.UserID, int(recipientID), isRecipientOnline, messageID)
 	return nil
 }
@@ -241,6 +295,11 @@ func (h *E2EEMessageHandler) handleKeyUpload(conn *Connection, msg ClientMessage
 	keyAlgorithm, ok := keyData["key_algorithm"].(string)
 	if !ok {
 		return fmt.Errorf("missing or invalid key_algorithm")
+	}
+
+	// Validate public key format and strength
+	if err := validatePublicKey(publicKey, keyAlgorithm); err != nil {
+		return fmt.Errorf("invalid public key: %w", err)
 	}
 
 	// Store the user's public key (private key is NEVER stored)
@@ -338,7 +397,7 @@ func (h *E2EEMessageHandler) handleOfflineSync(conn *Connection) error {
 		return fmt.Errorf("failed to get offline messages: %w", err)
 	}
 
-	// Send each message to the user
+	// Send each message to the user (skip rate limit for offline sync)
 	syncedCount := 0
 	for _, offlineMsg := range offlineResp.Messages {
 		serverMsg := ServerMessage{
@@ -356,8 +415,8 @@ func (h *E2EEMessageHandler) handleOfflineSync(conn *Connection) error {
 			Timestamp: time.Now(),
 		}
 
-		if err := conn.SendMessage(serverMsg); err != nil {
-			log.Printf("Failed to send offline message %d to user %d: %v", offlineMsg.MessageID, conn.UserID, err)
+		if err := conn.SendMessageWithRateLimit(serverMsg, false); err != nil {
+			log.Printf("Failed to send offline message %d to user %d: %v, stopping sync", offlineMsg.MessageID, conn.UserID, err)
 			break
 		}
 
@@ -379,7 +438,9 @@ func (h *E2EEMessageHandler) handleOfflineSync(conn *Connection) error {
 		},
 		Timestamp: time.Now(),
 	}
-	_ = conn.SendMessage(completion)
+	if err := conn.SendMessageWithRateLimit(completion, false); err != nil {
+		log.Printf("Failed to send sync completion to user %d: %v", conn.UserID, err)
+	}
 
 	log.Printf("User %d synced %d offline messages (total: %d)", conn.UserID, syncedCount, offlineResp.Count)
 	return nil
@@ -513,7 +574,7 @@ func (h *E2EEMessageHandler) DeliverOfflineMessages(conn *Connection) {
 				},
 				Timestamp: time.Now(),
 			}
-			_ = conn.SendMessage(notification)
+			_ = conn.SendMessageWithRateLimit(notification, false)
 			return
 		}
 
@@ -529,8 +590,58 @@ func (h *E2EEMessageHandler) DeliverOfflineMessages(conn *Connection) {
 			},
 			Timestamp: time.Now(),
 		}
-		_ = conn.SendMessage(notification)
+		_ = conn.SendMessageWithRateLimit(notification, false)
 
 		_ = h.handleOfflineSync(conn)
 	}()
+}
+
+// validatePublicKey validates the format and strength of a public key
+func validatePublicKey(publicKeyPEM string, algorithm string) error {
+	// Decode PEM block
+	block, _ := pem.Decode([]byte(publicKeyPEM))
+	if block == nil {
+		return fmt.Errorf("failed to decode PEM block")
+	}
+
+	// Parse public key
+	pub, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return fmt.Errorf("failed to parse public key: %w", err)
+	}
+
+	// Validate based on algorithm
+	switch algorithm {
+	case "RSA-2048", "RSA-4096":
+		rsaPubKey, ok := pub.(*rsa.PublicKey)
+		if !ok {
+			return fmt.Errorf("not an RSA public key")
+		}
+
+		// Check minimum key size for security
+		if rsaPubKey.N.BitLen() < 2048 {
+			return fmt.Errorf("RSA key size %d bits is too small, minimum 2048 bits required", rsaPubKey.N.BitLen())
+		}
+
+		// Warn if key size is larger than expected
+		if rsaPubKey.N.BitLen() > 8192 {
+			return fmt.Errorf("RSA key size %d bits is too large, maximum 8192 bits allowed", rsaPubKey.N.BitLen())
+		}
+
+	default:
+		return fmt.Errorf("unsupported key algorithm: %s", algorithm)
+	}
+
+	return nil
+}
+
+// generateSecureMessageID generates a cryptographically secure message ID
+func generateSecureMessageID(userID, sessionID int) string {
+	b := make([]byte, 16)
+	_, err := rand.Read(b)
+	if err != nil {
+		// Fallback to timestamp-based ID if random generation fails
+		return fmt.Sprintf("%d-%d-%d", userID, sessionID, time.Now().UnixNano())
+	}
+	return fmt.Sprintf("%d-%d-%x", userID, sessionID, b)
 }

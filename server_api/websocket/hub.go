@@ -2,6 +2,8 @@ package websocket
 
 import (
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 )
 
 // Hub maintains the set of active clients and broadcasts messages to the clients.
@@ -108,7 +110,7 @@ func (h *Hub) Run() {
 				}
 
 				delete(h.connections, conn.UserID)
-				close(conn.send)
+				conn.safeCloseSend()
 			}
 			h.mutex.Unlock()
 
@@ -125,16 +127,24 @@ func (h *Hub) Run() {
 		case req := <-h.broadcastChan:
 			h.mutex.RLock()
 			connections, ok := h.sessionConnections[req.SessionID]
-			if ok {
-				// Send message to all connections in the session
-				for conn := range connections {
-					// Don't send the message back to the sender
-					if conn.UserID != req.Message.SenderID {
-						_ = conn.SendMessage(req.Message)
-					}
+			if !ok {
+				h.mutex.RUnlock()
+				continue
+			}
+
+			connsCopy := make([]*Connection, 0, len(connections))
+			for conn := range connections {
+				if conn.UserID != req.Message.SenderID {
+					connsCopy = append(connsCopy, conn)
 				}
 			}
 			h.mutex.RUnlock()
+
+			for _, conn := range connsCopy {
+				if err := conn.SendMessage(req.Message); err != nil {
+					log.Warnf("Failed to broadcast message to user %d: %v", conn.UserID, err)
+				}
+			}
 		}
 	}
 }
@@ -233,7 +243,7 @@ func (h *Hub) Close() {
 
 	// Close all connections
 	for _, conn := range h.connections {
-		close(conn.send)
+		conn.safeCloseSend()
 		conn.ws.Close()
 	}
 

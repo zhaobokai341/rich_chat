@@ -43,7 +43,7 @@ func NewHandler(
 
 // WebSocketEndpoint handles the WebSocket connection upgrade with authentication
 func (h *Handler) WebSocketEndpoint(c *gin.Context) {
-	UpgradeToWebSocket(c, h.authService, h.userService, h.chatService, h.hub, h.jwtSecret, h.wsConfig)
+	UpgradeToWebSocket(c, h.userService, h.chatService, h.hub, h.jwtSecret, h.wsConfig)
 }
 
 // Implement the WebSocketService interface

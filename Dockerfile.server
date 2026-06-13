@@ -1,0 +1,38 @@
+# Build stage
+FROM golang:1.26.2-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the server binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o server_api_bin ./server_api/main.go
+
+# Final stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Install ca-certificates for HTTPS and tzdata for timezone support
+RUN apk --no-cache add ca-certificates tzdata
+
+# Copy binary from builder
+COPY --from=builder /build/server_api_bin .
+
+# Copy language pack
+COPY --from=builder /build/lang_pack /app/lang_pack
+
+# Copy .env file (should be mounted as volume in production)
+COPY server_api/.env.example /app/.env
+
+EXPOSE 2316
+
+CMD ["./server_api_bin"]

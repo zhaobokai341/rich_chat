@@ -114,11 +114,12 @@ func (w *PostgresChatWriter) DeleteMessage(ctx context.Context, messageID int) e
 // StoreEncryptedMessage stores an encrypted message in the database
 func (w *PostgresChatWriter) StoreEncryptedMessage(ctx context.Context, encryptedMsg *EncryptedMessage) error {
 	query := `
-		INSERT INTO encrypted_messages (message_id, encrypted_content, encryption_key_id, iv, auth_tag, content_type, file_size, checksum, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`
+		INSERT INTO encrypted_messages (message_id, encrypted_content, encrypted_session_key, encryption_key_id, iv, auth_tag, content_type, file_size, checksum, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())`
 	_, err := w.db.ExecContext(ctx, query,
 		encryptedMsg.MessageID,
 		encryptedMsg.EncryptedContent,
+		encryptedMsg.EncryptedSessionKey,
 		encryptedMsg.EncryptionKeyID,
 		encryptedMsg.Iv,
 		encryptedMsg.AuthTag,

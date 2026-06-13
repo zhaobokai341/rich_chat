@@ -314,20 +314,6 @@ func (s *UserServiceImpl) CheckUserExists(userID int) (bool, error) {
 
 // GetUserBasicInfo retrieves basic user information
 func (s *UserServiceImpl) GetUserBasicInfo(ctx context.Context, userID int) (*database.UserBasicInfo, error) {
-	// Check if user exists
-	exists, err := s.userRepo.ExistsByID(userID)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"user_id": userID,
-			"error":   err.Error(),
-		}).Error("Failed to check user existence")
-		return nil, fmt.Errorf("failed to check user existence: %w", err)
-	}
-	if !exists {
-		// To prevent user enumeration, return the same error type as for auth failures
-		return nil, ErrInvalidPassword
-	}
-
 	// Get user basic info
 	userInfo, err := s.userRepo.GetUserBasicInfo(userID)
 	if err != nil {

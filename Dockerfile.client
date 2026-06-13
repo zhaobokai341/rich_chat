@@ -1,0 +1,39 @@
+# Build stage
+FROM golang:1.26.2-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Build the client binary
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o client_bin ./client/main.go
+
+# Final stage
+FROM alpine:latest
+
+WORKDIR /app
+
+# Install ca-certificates for HTTPS
+RUN apk --no-cache add ca-certificates
+
+# Copy binary from builder
+COPY --from=builder /build/client_bin .
+
+# Copy language pack
+COPY --from=builder /build/lang_pack /app/lang_pack
+
+# Copy config directory
+COPY --from=builder /build/client/config /app/config
+
+# Copy .env file
+COPY client/.env.example /app/.env
+
+CMD ["./client_bin"]

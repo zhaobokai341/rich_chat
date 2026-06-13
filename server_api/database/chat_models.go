@@ -38,15 +38,16 @@ type MessageIndex struct {
 
 // EncryptedMessage represents the encrypted content of a message
 type EncryptedMessage struct {
-	MessageID        int        `db:"message_id"`
-	EncryptedContent string     `db:"encrypted_content"` // AES-256-GCM encrypted content
-	EncryptionKeyID  *string    `db:"encryption_key_id"` // reference to which key was used for encryption
-	Iv               []byte     `db:"iv"`                // initialization vector for AES decryption
-	AuthTag          []byte     `db:"auth_tag"`          // authentication tag for AES-GCM
-	ContentType      string     `db:"content_type"`      // MIME type of original content
-	FileSize         *int       `db:"file_size"`         // for file attachments
-	Checksum         *string    `db:"checksum"`          // SHA-256 checksum of original content before encryption
-	CreatedAt        *time.Time `db:"created_at"`
+	MessageID           int        `db:"message_id"`
+	EncryptedContent    string     `db:"encrypted_content"`     // AES-256-GCM encrypted content
+	EncryptedSessionKey []byte     `db:"encrypted_session_key"` // Session key encrypted with recipient's public key
+	EncryptionKeyID     *string    `db:"encryption_key_id"`     // reference to which key was used for encryption
+	Iv                  []byte     `db:"iv"`                    // initialization vector for AES decryption
+	AuthTag             []byte     `db:"auth_tag"`              // authentication tag for AES-GCM
+	ContentType         string     `db:"content_type"`          // MIME type of original content
+	FileSize            *int       `db:"file_size"`             // for file attachments
+	Checksum            *string    `db:"checksum"`              // SHA-256 checksum of original content before encryption
+	CreatedAt           *time.Time `db:"created_at"`
 }
 
 // MessageReadReceipt represents who has read which messages

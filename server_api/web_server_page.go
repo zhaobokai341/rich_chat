@@ -306,13 +306,6 @@ func (api *WebServerAPI) CreateChatSession(c *gin.Context) {
 		return
 	}
 
-	if req.RecipientID == userID {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"message": lp.G("cannot_chat_yourself"),
-		})
-		return
-	}
-
 	// Check if recipient exists
 	exists, err := api.userService.CheckUserExists(req.RecipientID)
 	if err != nil || !exists {

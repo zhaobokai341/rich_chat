@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	log "github.com/sirupsen/logrus"
@@ -18,6 +19,51 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/gorilla/websocket"
 )
+
+// sendError sends an error response to the client with non-blocking send
+func (c *Connection) sendError(errorMsg string, msgType string) {
+	response := ServerMessage{
+		Type:      "error",
+		SessionID: 0,
+		SenderID:  c.UserID,
+		Content: map[string]interface{}{
+			"error": errorMsg,
+			"type":  msgType,
+		},
+		Timestamp: time.Now(),
+	}
+	c.sendNonBlocking(response)
+}
+
+// sendResponse sends a success response to the client with non-blocking send
+func (c *Connection) sendResponse(msgType string, sessionID int, content interface{}) {
+	response := ServerMessage{
+		Type:      msgType,
+		SessionID: sessionID,
+		Content:   content,
+		Timestamp: time.Now(),
+	}
+	c.sendNonBlocking(response)
+}
+
+// sendNonBlocking sends a message without blocking if the channel is full
+func (c *Connection) sendNonBlocking(msg ServerMessage) {
+	if atomic.LoadInt32(&c.sendClosed) == 1 {
+		return
+	}
+
+	messageJSON, err := json.Marshal(msg)
+	if err != nil {
+		log.Errorf("Failed to marshal message: %v", err)
+		return
+	}
+
+	select {
+	case c.send <- messageJSON:
+	default:
+		log.Warnf("Send channel full for user %d, dropping message", c.UserID)
+	}
+}
 
 // Config holds the WebSocket configuration
 type Config struct {
@@ -77,6 +123,10 @@ type Connection struct {
 	maxMessagesPerSecond int        // Maximum messages per second
 	lastMessageTime      time.Time  // Timestamp of the last message sent
 	rateLimiterMutex     sync.Mutex // Mutex to protect rate limiter
+
+	// Channel close protection
+	sendClosed   int32        // Atomic flag to prevent double close
+	sendClosedMu sync.RWMutex // Mutex to protect send channel access
 }
 
 // WritePump pumps messages from the hub to the WebSocket connection
@@ -84,6 +134,12 @@ func (c *Connection) WritePump() {
 	ticker := time.NewTicker(c.config.PINGPERIOD)
 	defer func() {
 		ticker.Stop()
+		// Don't try to write close message if connection is already closed
+		_ = c.ws.WriteControl(
+			websocket.CloseMessage,
+			websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""),
+			time.Now().Add(time.Second),
+		)
 		c.ws.Close()
 	}()
 
@@ -92,10 +148,6 @@ func (c *Connection) WritePump() {
 		case message, ok := <-c.send:
 			if !ok {
 				// The hub closed the channel.
-				err := c.ws.WriteMessage(websocket.CloseMessage, []byte{})
-				if err != nil {
-					log.Errorf("Error writing close message: %v", err)
-				}
 				return
 			}
 
@@ -112,17 +164,33 @@ func (c *Connection) WritePump() {
 
 			// Add queued messages to the current websocket message
 			n := len(c.send)
+		batchLoop:
 			for i := 0; i < n; i++ {
-				_, _ = w.Write([]byte("\n"))
-				_, _ = w.Write(<-c.send)
+				select {
+				case msg, ok := <-c.send:
+					if !ok {
+						// Channel was closed, stop writing
+						_ = w.Close()
+						return
+					}
+					_, _ = w.Write([]byte("\n"))
+					_, _ = w.Write(msg)
+				default:
+					// No more messages, exit batch loop
+					break batchLoop
+				}
 			}
 
 			if err := w.Close(); err != nil {
 				return
 			}
 		case <-ticker.C:
-			// Send ping to keep connection alive
-			if err := c.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
+			// Send ping to keep connection alive using WriteControl (safe for concurrent use)
+			if err := c.ws.WriteControl(
+				websocket.PingMessage,
+				nil,
+				time.Now().Add(c.config.WRITEWAIT),
+			); err != nil {
 				return
 			}
 		}
@@ -130,10 +198,7 @@ func (c *Connection) WritePump() {
 }
 
 // ReadPump pumps messages from the WebSocket connection to the hub
-func (c *Connection) ReadPump(
-	authService service.AuthService,
-	userService service.UserService,
-) {
+func (c *Connection) ReadPump() {
 	defer func() {
 		c.hub.Unregister(c)
 		c.ws.Close()
@@ -155,8 +220,11 @@ func (c *Connection) ReadPump(
 				err,
 				websocket.CloseGoingAway,
 				websocket.CloseAbnormalClosure,
+				websocket.CloseNormalClosure,
 			) {
 				log.Errorf("WebSocket error: %v", err)
+			} else {
+				log.Debugf("WebSocket connection closed for user %d: %v", c.UserID, err)
 			}
 			break
 		}
@@ -173,36 +241,14 @@ func (c *Connection) ReadPump(
 			// Validate the E2EE message
 			if err := c.messageHandler.ValidateMessage(clientMsg); err != nil {
 				log.Errorf("Invalid E2EE message: %v", err)
-				errorMsg := ServerMessage{
-					Type:      "error",
-					SessionID: 0,
-					SenderID:  c.UserID,
-					Content: map[string]interface{}{
-						"error": err.Error(),
-						"type":  clientMsg.Type,
-					},
-					Timestamp: time.Now(),
-				}
-				errorBytes, _ := json.Marshal(errorMsg)
-				c.send <- errorBytes
+				c.sendError(err.Error(), clientMsg.Type)
 				continue
 			}
 
 			// Handle the E2EE message
 			if err := c.messageHandler.HandleMessage(c, clientMsg); err != nil {
 				log.Errorf("Error handling E2EE message: %v", err)
-				errorMsg := ServerMessage{
-					Type:      "error",
-					SessionID: 0,
-					SenderID:  c.UserID,
-					Content: map[string]interface{}{
-						"error": err.Error(),
-						"type":  clientMsg.Type,
-					},
-					Timestamp: time.Now(),
-				}
-				errorBytes, _ := json.Marshal(errorMsg)
-				c.send <- errorBytes
+				c.sendError(err.Error(), clientMsg.Type)
 			}
 			continue
 		}
@@ -224,14 +270,7 @@ func (c *Connection) ReadPump(
 			c.hub.JoinSession(c, sessionIDInt)
 
 			// Send confirmation back to the user
-			response := ServerMessage{
-				Type:      "session_joined",
-				SessionID: sessionIDInt,
-				Content:   "Successfully joined session",
-				Timestamp: time.Now(),
-			}
-			responseBytes, _ := json.Marshal(response)
-			c.send <- responseBytes
+			c.sendResponse("session_joined", sessionIDInt, "Successfully joined session")
 
 		case "leave_session":
 			// User wants to leave a chat session
@@ -248,14 +287,7 @@ func (c *Connection) ReadPump(
 			c.hub.LeaveSession(c, sessionIDInt)
 
 			// Send confirmation back to the user
-			response := ServerMessage{
-				Type:      "session_left",
-				SessionID: sessionIDInt,
-				Content:   "Successfully left session",
-				Timestamp: time.Now(),
-			}
-			responseBytes, _ := json.Marshal(response)
-			c.send <- responseBytes
+			c.sendResponse("session_left", sessionIDInt, "Successfully left session")
 
 		case "chat":
 			// Handle chat message
@@ -293,14 +325,7 @@ func (c *Connection) ReadPump(
 
 		default:
 			// Unknown message type
-			response := ServerMessage{
-				Type:      "error",
-				SessionID: 0,
-				Content:   "Unknown message type: " + clientMsg.Type,
-				Timestamp: time.Now(),
-			}
-			responseBytes, _ := json.Marshal(response)
-			c.send <- responseBytes
+			c.sendError("Unknown message type: "+clientMsg.Type, clientMsg.Type)
 		}
 	}
 }
@@ -309,7 +334,6 @@ func (c *Connection) ReadPump(
 // with JWT authentication
 func UpgradeToWebSocket(
 	c *gin.Context,
-	authService service.AuthService,
 	userService service.UserService,
 	chatService service.ChatService,
 	hub HubInterface,
@@ -346,16 +370,24 @@ func UpgradeToWebSocket(
 	// Register the connection with the hub
 	hub.Register(connection)
 
-	// Deliver offline messages if any
-	go deliverOfflineMessages(connection, chatService, e2eeHandler)
-
 	// Start the write and read pumps
 	go connection.WritePump()
-	go connection.ReadPump(authService, userService)
+	go connection.ReadPump()
+
+	// Deliver offline messages after pumps are started
+	go deliverOfflineMessages(connection, chatService, e2eeHandler)
 }
 
 // deliverOfflineMessages delivers pending offline messages when a user connects
 func deliverOfflineMessages(conn *Connection, chatService service.ChatService, e2eeHandler MessageHandler) {
+	// Wait for WritePump to be ready by checking connection state
+	time.Sleep(200 * time.Millisecond)
+
+	// Check if connection is still active before delivering offline messages
+	if atomic.LoadInt32(&conn.sendClosed) == 1 {
+		return
+	}
+
 	// Get undelivered message count
 	count, err := chatService.GetUndeliveredMessageCount(context.Background(), conn.UserID)
 	if err != nil {
@@ -376,7 +408,9 @@ func deliverOfflineMessages(conn *Connection, chatService service.ChatService, e
 			},
 			Timestamp: time.Now(),
 		}
-		_ = conn.SendMessage(notification)
+		if err := conn.SendMessageWithRateLimit(notification, false); err != nil {
+			log.Debugf("Failed to send offline notification to user %d: %v", conn.UserID, err)
+		}
 		return
 	}
 
@@ -392,7 +426,10 @@ func deliverOfflineMessages(conn *Connection, chatService service.ChatService, e
 		},
 		Timestamp: time.Now(),
 	}
-	_ = conn.SendMessage(notification)
+	if err := conn.SendMessageWithRateLimit(notification, false); err != nil {
+		log.Debugf("Failed to send offline notification to user %d: %v", conn.UserID, err)
+		return
+	}
 
 	// Trigger offline sync
 	syncMsg := ClientMessage{
@@ -469,10 +506,30 @@ func authenticateUser(
 	return claims.UserID, nil
 }
 
+// safeCloseSend safely closes the send channel only once
+func (c *Connection) safeCloseSend() {
+	c.sendClosedMu.Lock()
+	defer c.sendClosedMu.Unlock()
+
+	if atomic.CompareAndSwapInt32(&c.sendClosed, 0, 1) {
+		close(c.send)
+	}
+}
+
 // SendMessage sends a message to the client
 func (c *Connection) SendMessage(msg ServerMessage) error {
-	// Check rate limit
-	if !c.allowMessage() {
+	return c.SendMessageWithRateLimit(msg, true)
+}
+
+// SendMessageWithRateLimit sends a message to the client with optional rate limiting
+func (c *Connection) SendMessageWithRateLimit(msg ServerMessage, applyRateLimit bool) error {
+	// Check if send channel is already closed
+	if atomic.LoadInt32(&c.sendClosed) == 1 {
+		return fmt.Errorf("connection is closing")
+	}
+
+	// Check rate limit (skip for system messages like offline sync)
+	if applyRateLimit && !c.allowMessage() {
 		log.Errorf("Rate limit exceeded for user %d, dropping message", c.UserID)
 		return fmt.Errorf("rate limit exceeded")
 	}
@@ -489,13 +546,13 @@ func (c *Connection) SendMessage(msg ServerMessage) error {
 
 	select {
 	case c.send <- messageJSON:
+		return nil
 	default:
-		// If the send channel is full, close the connection
-		close(c.send)
+		// If the send channel is full, close the connection safely
+		c.safeCloseSend()
 		c.hub.Unregister(c)
+		return fmt.Errorf("send channel full, connection closing")
 	}
-
-	return nil
 }
 
 // allowMessage checks if a message is allowed to be sent based on rate limiting

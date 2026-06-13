@@ -395,7 +395,7 @@ func (s *ChatServiceImpl) SendEncryptedMessage(ctx context.Context, req *SendMes
 	var messageID int
 
 	if isDelivered {
-		// Online user: only store in encrypted_messages table (real-time delivery)
+		// Online user: store in encrypted_messages table (real-time delivery)
 		messageID, err = s.chatRepo.CreateMessageIndex(ctx, req.SessionID, req.SenderID, "text", nil)
 		if err != nil {
 			log.WithFields(log.Fields{
@@ -407,12 +407,13 @@ func (s *ChatServiceImpl) SendEncryptedMessage(ctx context.Context, req *SendMes
 		}
 
 		encryptedMsg := &database.EncryptedMessage{
-			MessageID:        messageID,
-			EncryptedContent: string(encryptedContent),
-			Iv:               iv,
-			AuthTag:          authTag,
-			EncryptionKeyID:  nil,
-			ContentType:      "application/octet-stream",
+			MessageID:           messageID,
+			EncryptedContent:    string(encryptedContent),
+			EncryptedSessionKey: encryptedKey,
+			Iv:                  iv,
+			AuthTag:             authTag,
+			EncryptionKeyID:     nil,
+			ContentType:         "application/octet-stream",
 		}
 
 		err = s.chatRepo.StoreEncryptedMessage(ctx, encryptedMsg)
