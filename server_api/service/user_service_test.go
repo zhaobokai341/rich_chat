@@ -589,7 +589,7 @@ func TestUserServiceImpl_GetUserBasicInfo(t *testing.T) {
 			name:          "user not found",
 			userID:        999,
 			expectedInfo:  nil,
-			expectedError: ErrInvalidPassword, // Changed to prevent user enumeration
+			expectedError: ErrUserNotFound,
 			setupMocks: func() {
 				mockUserRepo.On("ExistsByID", 999).Return(false, nil)
 			},

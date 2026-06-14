@@ -44,30 +44,30 @@ func handleServiceError(c *gin.Context, err error) {
 	case service.ErrInvalidEmailFormat:
 		log.WithFields(log.Fields{
 			"error": err.Error(),
-		}).Warning("Invalid email format error occurred")
+		}).Warning("Invalid email format")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": lp.G("invalid_input") + ": " + err.Error(),
+			"message": lp.G("invalid_input"),
 		})
 	case service.ErrEmailExceedsMaxLength:
 		log.WithFields(log.Fields{
 			"error": err.Error(),
-		}).Warning("Email length validation error occurred")
+		}).Warning("Email length validation error")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": lp.G("invalid_input") + ": " + err.Error(),
+			"message": lp.G("invalid_input"),
 		})
 	case service.ErrBioExceedsMaxLength:
 		log.WithFields(log.Fields{
 			"error": err.Error(),
-		}).Warning("Bio length validation error occurred")
+		}).Warning("Bio length validation error")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": lp.G("invalid_input") + ": " + err.Error(),
+			"message": lp.G("invalid_input"),
 		})
 	case service.ErrPasswordExceedsMaxLength:
 		log.WithFields(log.Fields{
 			"error": err.Error(),
-		}).Warning("Password length validation error occurred")
+		}).Warning("Password length validation error")
 		c.JSON(http.StatusBadRequest, gin.H{
-			"message": lp.G("invalid_input") + ": " + err.Error(),
+			"message": lp.G("invalid_input"),
 		})
 	default:
 		// Log as error for genuine server-side issues

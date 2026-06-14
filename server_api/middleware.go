@@ -11,6 +11,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -55,13 +56,25 @@ func languageMiddleware() gin.HandlerFunc {
 func check_ip_in_block(deps *MiddlewareDependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
+		if clientIP == "127.0.0.1" || clientIP == "::1" {
+			c.Next()
+			return
+		}
 
 		if deps.DBService == nil {
 			c.Next()
 			return
 		}
 		rateLimitRepo := deps.DBService.GetRateLimitRepository()
-		isBlocked, _ := rateLimitRepo.CheckIPBlocked(clientIP)
+		isBlocked, err := rateLimitRepo.CheckIPBlocked(clientIP)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"ip":    clientIP,
+				"error": err.Error(),
+			}).Warning("Failed to check IP block status, allowing request")
+			c.Next()
+			return
+		}
 		if isBlocked {
 			log.WithFields(log.Fields{
 				"ip": clientIP,
@@ -76,6 +89,10 @@ func check_ip_in_block(deps *MiddlewareDependencies) gin.HandlerFunc {
 func track_ip_visit(deps *MiddlewareDependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		clientIP := c.ClientIP()
+		if clientIP == "127.0.0.1" || clientIP == "::1" {
+			c.Next()
+			return
+		}
 
 		if deps.DBService == nil {
 			c.Next()
@@ -84,10 +101,23 @@ func track_ip_visit(deps *MiddlewareDependencies) gin.HandlerFunc {
 
 		rateLimitRepo := deps.DBService.GetRateLimitRepository()
 		visitCount, err := rateLimitRepo.TrackIPVisit(clientIP)
-		if err == nil && visitCount > int64(IP_LIMIT_VISIT_TIMES) {
+		if err != nil {
+			log.WithFields(log.Fields{
+				"ip":    clientIP,
+				"error": err.Error(),
+			}).Warning("Failed to track IP visit, allowing request")
+			c.Next()
+			return
+		}
+		if visitCount > int64(IP_LIMIT_VISIT_TIMES) {
 			reason := fmt.Sprintf("Exceeded rate limit: %d visits in %v (limit: %d)",
 				visitCount, IP_LIMIT_TIME, IP_LIMIT_VISIT_TIMES)
-			_ = rateLimitRepo.BlockIP(clientIP, reason, IP_LIMIT_LOCKOUT_DURATION)
+			if blockErr := rateLimitRepo.BlockIP(clientIP, reason, IP_LIMIT_LOCKOUT_DURATION); blockErr != nil {
+				log.WithFields(log.Fields{
+					"ip":    clientIP,
+					"error": blockErr.Error(),
+				}).Error("Failed to block IP after rate limit exceeded")
+			}
 
 			log.WithFields(log.Fields{
 				"ip":     clientIP,
@@ -197,13 +227,31 @@ func check_client_token() gin.HandlerFunc {
 func check_user_is_exists(deps *MiddlewareDependencies) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		usr_id := c.GetHeader("user_id")
-		user_id, _ := strconv.Atoi(usr_id)
+		user_id, err := strconv.Atoi(usr_id)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"user_id": usr_id,
+				"error":   err.Error(),
+			}).Warning("Invalid user_id format in header")
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID format"})
+			c.Abort()
+			return
+		}
 
 		if deps.Services == nil {
 			c.Next()
 			return
 		}
-		exists, _ := deps.Services.UserService.CheckUserExists(user_id)
+		exists, err := deps.Services.UserService.CheckUserExists(user_id)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"user_id": user_id,
+				"error":   err.Error(),
+			}).Warning("Failed to check user existence")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error"})
+			c.Abort()
+			return
+		}
 		if !exists {
 			lp := getLanguagePackFromContext(c)
 			log.WithFields(log.Fields{
@@ -232,5 +280,26 @@ func force_https() gin.HandlerFunc {
 			c.Abort()
 			return
 		}
+	}
+}
+
+// request_id adds request ID tracking middleware
+func request_id() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		requestID := c.GetHeader("X-Request-ID")
+		if requestID == "" {
+			requestID = uuid.New().String()
+		}
+		c.Set("request_id", requestID)
+		c.Header("X-Request-ID", requestID)
+
+		// Add request ID to log context
+		log.WithFields(log.Fields{
+			"request_id": requestID,
+			"method":     c.Request.Method,
+			"path":       c.Request.URL.Path,
+		}).Debug("Request started")
+
+		c.Next()
 	}
 }

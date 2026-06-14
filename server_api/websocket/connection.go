@@ -67,19 +67,25 @@ func (c *Connection) sendNonBlocking(msg ServerMessage) {
 
 // Config holds the WebSocket configuration
 type Config struct {
-	WRITEWAIT      time.Duration // Time allowed to write a message to the peer
-	PONGWAIT       time.Duration // Time allowed to read the next pong message from the peer
-	PINGPERIOD     time.Duration // Send pings to peer with this period (should be less than PongWait)
-	MAXMESSAGESIZE int64         // Maximum message size allowed from peer
+	WRITEWAIT             time.Duration // Time allowed to write a message to the peer
+	PONGWAIT              time.Duration // Time allowed to read the next pong message from the peer
+	PINGPERIOD            time.Duration // Send pings to peer with this period (should be less than PongWait)
+	MAXMESSAGESIZE        int64         // Maximum message size allowed from peer
+	SEND_CHANNEL_BUFFER   int           // Buffered channel size for outbound messages
+	MAX_MESSAGES_PER_SEC  int           // Rate limit: maximum messages per second
+	OFFLINE_MESSAGE_DELAY time.Duration // Delay before delivering offline messages
 }
 
 // DefaultConfig returns the default WebSocket configuration
 func DefaultConfig() Config {
 	return Config{
-		WRITEWAIT:      10 * time.Second,
-		PONGWAIT:       60 * time.Second,
-		PINGPERIOD:     (60 * time.Second * 9) / 10, // 54 seconds
-		MAXMESSAGESIZE: 5120,                        // 5KB
+		WRITEWAIT:             10 * time.Second,
+		PONGWAIT:              60 * time.Second,
+		PINGPERIOD:            (60 * time.Second * 9) / 10, // 54 seconds
+		MAXMESSAGESIZE:        5120,                        // 5KB
+		SEND_CHANNEL_BUFFER:   256,
+		MAX_MESSAGES_PER_SEC:  10,
+		OFFLINE_MESSAGE_DELAY: 200 * time.Millisecond,
 	}
 }
 
@@ -87,7 +93,8 @@ var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 1024,
 	CheckOrigin: func(r *http.Request) bool {
-		// TODO: In production, you should restrict this to your frontend domains
+		// In production, you should restrict this to your frontend domains
+		// Example: return r.Header.Get("Origin") == "https://yourdomain.com"
 		return true
 	},
 }
@@ -358,13 +365,13 @@ func UpgradeToWebSocket(
 
 	connection := &Connection{
 		ws:                   conn,
-		send:                 make(chan []byte, 256), // Buffered channel
+		send:                 make(chan []byte, wsConfig.SEND_CHANNEL_BUFFER), // Buffered channel
 		hub:                  hub,
 		UserID:               userID,
 		ActiveSessions:       make(map[int]bool),
 		config:               wsConfig,
 		messageHandler:       e2eeHandler,
-		maxMessagesPerSecond: 10, // Default rate limit: 10 messages per second
+		maxMessagesPerSecond: wsConfig.MAX_MESSAGES_PER_SEC, // Rate limit from config
 	}
 
 	// Register the connection with the hub
@@ -381,7 +388,8 @@ func UpgradeToWebSocket(
 // deliverOfflineMessages delivers pending offline messages when a user connects
 func deliverOfflineMessages(conn *Connection, chatService service.ChatService, e2eeHandler MessageHandler) {
 	// Wait for WritePump to be ready by checking connection state
-	time.Sleep(200 * time.Millisecond)
+	// This delay ensures the WritePump goroutine has started and is ready to receive messages
+	time.Sleep(conn.config.OFFLINE_MESSAGE_DELAY)
 
 	// Check if connection is still active before delivering offline messages
 	if atomic.LoadInt32(&conn.sendClosed) == 1 {
@@ -496,7 +504,11 @@ func authenticateUser(
 	log.Debugf("[WebSocket Auth] Token validated successfully, claims UserID: %d", claims.UserID)
 
 	// Check if user exists using UserService
-	exists, _ := userService.CheckUserExists(claims.UserID)
+	exists, err := userService.CheckUserExists(claims.UserID)
+	if err != nil {
+		log.Warningf("[WebSocket Auth] Failed to check user existence for user %d: %v", claims.UserID, err)
+		return 0, fmt.Errorf("failed to verify user")
+	}
 	if !exists {
 		log.Warningf("[WebSocket Auth] User %d does not exist in database", claims.UserID)
 		return 0, fmt.Errorf("user does not exist")

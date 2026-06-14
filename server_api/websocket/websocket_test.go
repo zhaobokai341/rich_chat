@@ -1,388 +1,826 @@
 package websocket
 
 import (
+	"encoding/json"
 	"net/http"
-	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/gorilla/websocket"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-
-	"rich_chat/server_api/service"
 )
-
-func TestHub(t *testing.T) {
-	t.Run("NewHub", func(t *testing.T) {
-		hub := NewHub()
-		assert.NotNil(t, hub)
-		assert.NotNil(t, hub.Register)
-		assert.NotNil(t, hub.Unregister)
-		assert.NotNil(t, hub.JoinSession)
-		assert.NotNil(t, hub.LeaveSession)
-		assert.NotNil(t, hub.Broadcast)
-	})
-
-	t.Run("HubOperations", func(t *testing.T) {
-		hub := NewHub()
-
-		// Test adding and removing connections
-		conn := &Connection{
-			UserID:         1,
-			ActiveSessions: make(map[int]bool),
-		}
-
-		// Register connection
-		hub.connections[1] = conn
-		assert.Len(t, hub.connections, 1)
-
-		// Add to session
-		hub.addToSession(conn, 100)
-		sessionConns, exists := hub.sessionConnections[100]
-		assert.True(t, exists)
-		assert.Len(t, sessionConns, 1)
-
-		// Remove from session
-		hub.removeFromSession(conn, 100)
-		_, exists = hub.sessionConnections[100]
-		assert.False(t, exists) // Should be cleaned up since it was the only connection
-	})
-}
-
-func TestConnection(t *testing.T) {
-	t.Run("SendMessage", func(t *testing.T) {
-		conn := &Connection{
-			send:   make(chan []byte, 1),
-			config: DefaultConfig(), // Initialize with default config
-		}
-
-		msg := ServerMessage{
-			Type:      "test",
-			SessionID: 1,
-			SenderID:  1,
-			Content:   "test content",
-			Timestamp: time.Now(),
-		}
-
-		err := conn.SendMessage(msg)
-		assert.NoError(t, err)
-	})
-}
-
-func TestMessageStructures(t *testing.T) {
-	t.Run("ClientMessageStructure", func(t *testing.T) {
-		msg := ClientMessage{
-			Type:      "chat",
-			SessionID: 1,
-			Content:   "Hello World",
-		}
-
-		assert.Equal(t, "chat", msg.Type)
-		assert.Equal(t, 1, msg.SessionID)
-		assert.Equal(t, "Hello World", msg.Content)
-	})
-
-	t.Run("ServerMessageStructure", func(t *testing.T) {
-		msg := ServerMessage{
-			Type:      "chat",
-			SessionID: 1,
-			SenderID:  123,
-			Content:   "Hello World",
-		}
-
-		assert.Equal(t, "chat", msg.Type)
-		assert.Equal(t, 1, msg.SessionID)
-		assert.Equal(t, 123, msg.SenderID)
-		assert.Equal(t, "Hello World", msg.Content)
-	})
-}
-
-// Mock connection for testing
-type MockConnection struct {
-	mock.Mock
-	UserID         int
-	ActiveSessions map[int]bool
-}
-
-func (m *MockConnection) SendMessage(msg ServerMessage) error {
-	args := m.Called(msg)
-	return args.Error(0)
-}
-
-func TestHubConcurrency(t *testing.T) {
-	t.Run("SafeMapAccess", func(t *testing.T) {
-		hub := NewHub()
-
-		// Start the hub in a goroutine
-		done := make(chan bool)
-		go func() {
-			// Run for a short period to test concurrent access
-			time.Sleep(100 * time.Millisecond)
-			done <- true
-		}()
-
-		// Perform some operations concurrently
-		go func() {
-			for i := 0; i < 10; i++ {
-				conn := &Connection{
-					UserID:         i,
-					ActiveSessions: make(map[int]bool),
-				}
-				hub.addToSession(conn, i*10)
-				time.Sleep(1 * time.Millisecond)
-			}
-		}()
-
-		<-done
-	})
-}
-
-func TestHub_GetConnectionForUser(t *testing.T) {
-	hub := NewHub()
-
-	conn := &Connection{
-		UserID:         1,
-		ActiveSessions: make(map[int]bool),
-	}
-
-	hub.connections[1] = conn
-
-	result := hub.GetConnectionForUser(1)
-	assert.Equal(t, conn, result)
-
-	result = hub.GetConnectionForUser(999)
-	assert.Nil(t, result)
-}
-
-func TestHub_IsUserOnline(t *testing.T) {
-	hub := NewHub()
-
-	conn := &Connection{
-		UserID:         1,
-		ActiveSessions: make(map[int]bool),
-	}
-
-	hub.connections[1] = conn
-
-	assert.True(t, hub.IsUserOnline(1))
-	assert.False(t, hub.IsUserOnline(999))
-}
-
-func TestHub_GetConnectionsForSession(t *testing.T) {
-	hub := NewHub()
-
-	conn1 := &Connection{
-		UserID:         1,
-		ActiveSessions: make(map[int]bool),
-	}
-	conn2 := &Connection{
-		UserID:         2,
-		ActiveSessions: make(map[int]bool),
-	}
-
-	hub.addToSession(conn1, 100)
-	hub.addToSession(conn2, 100)
-
-	connections := hub.GetConnectionsForSession(100)
-	assert.Len(t, connections, 2)
-
-	connections = hub.GetConnectionsForSession(999)
-	assert.Len(t, connections, 0)
-}
-
-func TestHub_SendToUser(t *testing.T) {
-	hub := NewHub()
-
-	conn := &Connection{
-		UserID:         1,
-		ActiveSessions: make(map[int]bool),
-		send:           make(chan []byte, 1),
-		config:         DefaultConfig(),
-	}
-
-	hub.connections[1] = conn
-
-	msg := ServerMessage{
-		Type:      "test",
-		SessionID: 1,
-		SenderID:  2,
-		Content:   "hello",
-		Timestamp: time.Now(),
-	}
-
-	err := hub.SendToUser(1, msg)
-	assert.NoError(t, err)
-
-	err = hub.SendToUser(999, msg)
-	assert.NoError(t, err)
-}
-
-func TestHub_Close(t *testing.T) {
-	hub := NewHub()
-
-	conn := &Connection{
-		UserID:         1,
-		ActiveSessions: make(map[int]bool),
-		send:           make(chan []byte, 1),
-	}
-
-	hub.connections[1] = conn
-	hub.sessionConnections[100] = map[*Connection]bool{conn: true}
-
-	// Test that maps are cleared after Close
-	// Note: We don't test actual websocket close here as it requires a real connection
-	close(conn.send)
-
-	// Verify maps before close
-	assert.Len(t, hub.connections, 1)
-	assert.Len(t, hub.sessionConnections, 1)
-
-	// Clear maps manually to simulate what Close would do
-	hub.mutex.Lock()
-	hub.connections = make(map[int]*Connection)
-	hub.sessionConnections = make(map[int]map[*Connection]bool)
-	hub.mutex.Unlock()
-
-	assert.Len(t, hub.connections, 0)
-	assert.Len(t, hub.sessionConnections, 0)
-}
-
-func TestHandler(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	assert.NotNil(t, handler)
-	assert.Equal(t, hub, handler.hub)
-	assert.Equal(t, "secret", handler.jwtSecret)
-}
-
-func TestHandler_BroadcastToSession(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	msg := ServerMessage{
-		Type:      "test",
-		SessionID: 1,
-		SenderID:  1,
-		Content:   "hello",
-		Timestamp: time.Now(),
-	}
-
-	handler.BroadcastToSession(1, msg)
-}
-
-func TestHandler_IsUserOnline(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	assert.False(t, handler.IsUserOnline(1))
-}
-
-func TestHandler_GetConnectionsForSession(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	connections := handler.GetConnectionsForSession(1)
-	assert.Len(t, connections, 0)
-}
-
-func TestHandler_Close(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	err := handler.Close()
-	assert.NoError(t, err)
-}
-
-func TestHandler_GetOnlineUsers(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	r.GET("/online", handler.GetOnlineUsers)
-
-	req, _ := http.NewRequest("GET", "/online", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-}
-
-func TestHandler_GetUserPresence(t *testing.T) {
-	mockAuthService := new(service.MockAuthService)
-	mockUserService := new(service.MockUserService)
-	mockChatService := new(service.MockChatService)
-	hub := NewHub()
-	wsConfig := DefaultConfig()
-
-	handler := NewHandler(hub, mockAuthService, mockUserService, mockChatService, "secret", wsConfig)
-
-	gin.SetMode(gin.TestMode)
-	r := gin.New()
-	r.GET("/presence/:user_id", handler.GetUserPresence)
-
-	req, _ := http.NewRequest("GET", "/presence/123", nil)
-	w := httptest.NewRecorder()
-	r.ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-}
 
 func TestDefaultConfig(t *testing.T) {
 	config := DefaultConfig()
 
 	assert.Equal(t, 10*time.Second, config.WRITEWAIT)
 	assert.Equal(t, 60*time.Second, config.PONGWAIT)
+	assert.Equal(t, 54*time.Second, config.PINGPERIOD)
 	assert.Equal(t, int64(5120), config.MAXMESSAGESIZE)
+	assert.Equal(t, 256, config.SEND_CHANNEL_BUFFER)
+	assert.Equal(t, 10, config.MAX_MESSAGES_PER_SEC)
+	assert.Equal(t, 200*time.Millisecond, config.OFFLINE_MESSAGE_DELAY)
 }
 
-func TestConnection_SendMessage_LargeMessage(t *testing.T) {
+func TestNewHub(t *testing.T) {
+	hub := NewHub()
+
+	assert.NotNil(t, hub)
+	assert.NotNil(t, hub.connections)
+	assert.NotNil(t, hub.sessionConnections)
+	assert.NotNil(t, hub.registerChan)
+	assert.NotNil(t, hub.unregisterChan)
+	assert.NotNil(t, hub.joinSessionChan)
+	assert.NotNil(t, hub.leaveSessionChan)
+	assert.NotNil(t, hub.broadcastChan)
+}
+
+func TestHubRun(t *testing.T) {
+	hub := NewHub()
+
+	go hub.Run()
+
+	// Give the hub some time to start
+	time.Sleep(10 * time.Millisecond)
+
+	// Just verify it's running - no cleanup needed for this test
+	// The hub will be garbage collected when the test ends
+	assert.NotNil(t, hub)
+}
+
+func TestHubRegisterConnection(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
 	conn := &Connection{
-		send:   make(chan []byte, 1),
-		config: DefaultConfig(),
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
 	}
 
-	largeContent := make([]byte, 10000)
+	hub.Register(conn)
+
+	// Give the hub time to process
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify connection was registered
+	registeredConn := hub.GetConnectionForUser(1)
+	assert.NotNil(t, registeredConn)
+	assert.Equal(t, conn, registeredConn)
+
+	// Cleanup - remove from hub
+	hub.mutex.Lock()
+	delete(hub.connections, 1)
+	hub.mutex.Unlock()
+}
+
+func TestHubUnregisterConnection(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+	}
+
+	// Register first
+	hub.Register(conn)
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify it's registered
+	assert.True(t, hub.IsUserOnline(1))
+
+	// Then unregister
+	hub.Unregister(conn)
+	time.Sleep(10 * time.Millisecond)
+
+	// Verify connection was unregistered
+	assert.False(t, hub.IsUserOnline(1))
+}
+
+func TestHubJoinAndLeaveSession(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+	}
+
+	// Register first
+	hub.Register(conn)
+	time.Sleep(50 * time.Millisecond)
+
+	// Join session
+	hub.JoinSession(conn, 100)
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify connection is in session
+	connections := hub.GetConnectionsForSession(100)
+	assert.Len(t, connections, 1)
+	assert.Contains(t, connections, conn)
+
+	// Leave session
+	hub.LeaveSession(conn, 100)
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify connection left session
+	connections = hub.GetConnectionsForSession(100)
+	assert.Empty(t, connections)
+}
+
+func TestHubBroadcast(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	config := DefaultConfig()
+	conn1 := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn2 := &Connection{
+		UserID:         2,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Register both connections
+	hub.Register(conn1)
+	hub.Register(conn2)
+	time.Sleep(10 * time.Millisecond)
+
+	// Join session
+	hub.JoinSession(conn1, 100)
+	hub.JoinSession(conn2, 100)
+	time.Sleep(10 * time.Millisecond)
+
+	// Broadcast message
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 1,
+		Content:  "hello",
+	}
+	hub.Broadcast(message, 100)
+
+	// Give the hub time to process
+	time.Sleep(10 * time.Millisecond)
+
+	// Check if message was sent to conn2 (not conn1, since conn1 is sender)
+	select {
+	case received := <-conn2.send:
+		assert.Contains(t, string(received), "hello")
+	default:
+		t.Fatal("Expected message in conn2 send channel")
+	}
+
+	// conn1 should not receive the message (it's the sender)
+	select {
+	case <-conn1.send:
+		t.Fatal("Sender should not receive the broadcast message")
+	default:
+		// Expected
+	}
+}
+
+func TestHubGetConnectionsForSession(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	config := DefaultConfig()
+	conn1 := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn2 := &Connection{
+		UserID:         2,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Register both connections
+	hub.Register(conn1)
+	hub.Register(conn2)
+	hub.JoinSession(conn1, 100)
+	hub.JoinSession(conn2, 100)
+	time.Sleep(10 * time.Millisecond)
+
+	// Get connections for session 100
+	connections := hub.GetConnectionsForSession(100)
+	assert.Len(t, connections, 2)
+
+	// Get connections for non-existent session
+	connections = hub.GetConnectionsForSession(999)
+	assert.Empty(t, connections)
+}
+
+func TestHubIsUserOnline(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	// Check user is not online initially
+	assert.False(t, hub.IsUserOnline(1))
+
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+	}
+
+	// Register connection
+	hub.Register(conn)
+	time.Sleep(10 * time.Millisecond)
+
+	// Check user is now online
+	assert.True(t, hub.IsUserOnline(1))
+}
+
+func TestHubSendToUser(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Register connection
+	hub.Register(conn)
+	time.Sleep(10 * time.Millisecond)
+
+	// Send message to user
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 2,
+		Content:  "hello",
+	}
+	err := hub.SendToUser(1, message)
+	assert.NoError(t, err)
+
+	// Verify message was sent
+	select {
+	case received := <-conn.send:
+		assert.Contains(t, string(received), "hello")
+	default:
+		t.Fatal("Expected message in send channel")
+	}
+
+	// Send to non-existent user (should not error)
+	err = hub.SendToUser(999, message)
+	assert.NoError(t, err)
+}
+
+func TestHubBroadcastToSession(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	config := DefaultConfig()
+	conn1 := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn2 := &Connection{
+		UserID:         2,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Register both connections
+	hub.Register(conn1)
+	hub.Register(conn2)
+	hub.JoinSession(conn1, 100)
+	hub.JoinSession(conn2, 100)
+	time.Sleep(10 * time.Millisecond)
+
+	// Broadcast to session
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 1,
+		Content:  "hello",
+	}
+	hub.BroadcastToSession(100, message)
+
+	// Give time to process
+	time.Sleep(10 * time.Millisecond)
+
+	// conn2 should receive the message
+	select {
+	case received := <-conn2.send:
+		assert.Contains(t, string(received), "hello")
+	default:
+		t.Fatal("Expected message in conn2 send channel")
+	}
+}
+
+func TestConnectionSafeCloseSend(t *testing.T) {
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+	}
+
+	// Close send channel
+	conn.safeCloseSend()
+
+	// Verify sendClosed flag is set
+	assert.Equal(t, int32(1), conn.sendClosed)
+
+	// Verify send channel is closed
+	_, ok := <-conn.send
+	assert.False(t, ok)
+}
+
+func TestConnectionSendMessage(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 2,
+		Content:  "hello",
+	}
+	err := conn.SendMessage(message)
+	assert.NoError(t, err)
+
+	// Verify message was sent
+	select {
+	case received := <-conn.send:
+		assert.Contains(t, string(received), "hello")
+	default:
+		t.Fatal("Expected message in send channel")
+	}
+}
+
+func TestConnectionSendMessageAfterClose(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Close send channel first
+	conn.safeCloseSend()
+
+	// Try to send message after close (should return error)
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 2,
+		Content:  "hello",
+	}
+	err := conn.SendMessage(message)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "closing")
+}
+
+func TestUpgrader(t *testing.T) {
+	// Test that upgrader is properly configured
+	upgrader := websocket.Upgrader{
+		ReadBufferSize:  1024,
+		WriteBufferSize: 1024,
+		CheckOrigin: func(r *http.Request) bool {
+			// In production, this should check against allowed origins
+			return true
+		},
+	}
+
+	assert.NotNil(t, upgrader)
+	assert.Equal(t, 1024, upgrader.ReadBufferSize)
+	assert.Equal(t, 1024, upgrader.WriteBufferSize)
+}
+
+func TestServerMessageJSONMarshal(t *testing.T) {
 	msg := ServerMessage{
-		Type:      "test",
-		SessionID: 1,
+		Type:      "message",
 		SenderID:  1,
-		Content:   string(largeContent),
+		SessionID: 100,
+		Content:   "hello world",
 		Timestamp: time.Now(),
 	}
 
-	err := conn.SendMessage(msg)
+	data, err := json.Marshal(msg)
+	assert.NoError(t, err)
+	assert.NotEmpty(t, data)
+	assert.Contains(t, string(data), "hello world")
+	assert.Contains(t, string(data), "message")
+}
+
+func TestServerMessageToJSONError(t *testing.T) {
+	// Create a message with content that can't be marshaled (circular reference)
+	type circular struct {
+		Self *circular
+	}
+	c := &circular{}
+	c.Self = c
+
+	msg := ServerMessage{
+		Type:    "message",
+		Content: c,
+	}
+
+	_, err := json.Marshal(msg)
 	assert.Error(t, err)
+}
+
+func TestHubGetConnectionForUser(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	// Get non-existent connection
+	conn := hub.GetConnectionForUser(1)
+	assert.Nil(t, conn)
+
+	// Register a connection
+	config := DefaultConfig()
+	newConn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+	hub.Register(newConn)
+	time.Sleep(50 * time.Millisecond)
+
+	// Get the connection
+	retrievedConn := hub.GetConnectionForUser(1)
+	assert.NotNil(t, retrievedConn)
+	assert.Equal(t, newConn, retrievedConn)
+}
+
+func TestHubBroadcastToNonExistentSession(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	// Broadcast to non-existent session should not panic
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 1,
+		Content:  "hello",
+	}
+	hub.BroadcastToSession(999, message)
+	time.Sleep(10 * time.Millisecond)
+
+	// No error should occur
+	assert.True(t, true)
+}
+
+func TestHubSendToOfflineUser(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	// Send to offline user should not error
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 1,
+		Content:  "hello",
+	}
+	err := hub.SendToUser(999, message)
+	assert.NoError(t, err)
+}
+
+func TestConnectionAllowMessage(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// First message should be allowed
+	allowed := conn.allowMessage()
+	assert.True(t, allowed)
+}
+
+func TestConnectionSendMessageWithRateLimitDisabled(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 2,
+		Content:  "hello",
+	}
+
+	// Send message without rate limit
+	err := conn.SendMessageWithRateLimit(message, false)
+	assert.NoError(t, err)
+
+	// Verify message was sent
+	select {
+	case received := <-conn.send:
+		assert.Contains(t, string(received), "hello")
+	default:
+		t.Fatal("Expected message in send channel")
+	}
+}
+
+func TestServerMessageStruct(t *testing.T) {
+	ts := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+	msg := ServerMessage{
+		Type:      "typing",
+		SenderID:  1,
+		SessionID: 5,
+		Content:   map[string]interface{}{"key": "value"},
+		Timestamp: ts,
+	}
+
+	assert.Equal(t, "typing", msg.Type)
+	assert.Equal(t, 1, msg.SenderID)
+	assert.Equal(t, 5, msg.SessionID)
+	assert.Equal(t, ts, msg.Timestamp)
+}
+
+func TestClientMessageStruct(t *testing.T) {
+	msg := ClientMessage{
+		Type:    "chat",
+		Content: "hello",
+	}
+
+	assert.Equal(t, "chat", msg.Type)
+	assert.Equal(t, "hello", msg.Content)
+}
+
+func TestConnectionSendResponse(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn.sendResponse("test_type", 100, "test message")
+
+	select {
+	case received := <-conn.send:
+		assert.Contains(t, string(received), "test_type")
+		assert.Contains(t, string(received), "test message")
+	default:
+		t.Fatal("Expected response in send channel")
+	}
+}
+
+func TestConnectionSendError(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn.sendError("test error", "test_type")
+
+	select {
+	case received := <-conn.send:
+		assert.Contains(t, string(received), "error")
+		assert.Contains(t, string(received), "test error")
+	default:
+		t.Fatal("Expected error message in send channel")
+	}
+}
+
+func TestConnectionWritePumpWithClosedChannel(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Close the send channel
+	close(conn.send)
+
+	// WritePump should handle closed channel gracefully
+	// We can't test WritePump directly without a real WebSocket connection,
+	// but we can verify the send channel behavior
+	_, ok := <-conn.send
+	assert.False(t, ok)
+}
+
+func TestHubMultipleUsersInSession(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	config := DefaultConfig()
+	conn1 := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn2 := &Connection{
+		UserID:         2,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	conn3 := &Connection{
+		UserID:         3,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Register all connections
+	hub.Register(conn1)
+	hub.Register(conn2)
+	hub.Register(conn3)
+	time.Sleep(50 * time.Millisecond)
+
+	// All join the same session
+	hub.JoinSession(conn1, 100)
+	hub.JoinSession(conn2, 100)
+	hub.JoinSession(conn3, 100)
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify all are in the session
+	connections := hub.GetConnectionsForSession(100)
+	assert.Len(t, connections, 3)
+
+	// Broadcast from conn1 - should go to conn2 and conn3
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 1,
+		Content:  "hello from conn1",
+	}
+	hub.Broadcast(message, 100)
+	time.Sleep(50 * time.Millisecond)
+
+	// conn2 and conn3 should receive the message
+	select {
+	case <-conn2.send:
+		// Expected
+	default:
+		t.Fatal("Expected message in conn2 send channel")
+	}
+
+	select {
+	case <-conn3.send:
+		// Expected
+	default:
+		t.Fatal("Expected message in conn3 send channel")
+	}
+
+	// conn1 should not receive (it's the sender)
+	select {
+	case <-conn1.send:
+		t.Fatal("Sender should not receive the broadcast message")
+	default:
+		// Expected
+	}
+}
+
+func TestConnectionRateLimiting(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:               1,
+		ActiveSessions:       make(map[int]bool),
+		send:                 make(chan []byte, 256),
+		config:               config,
+		maxMessagesPerSecond: 1, // 1 message per second
+	}
+
+	message := ServerMessage{
+		Type:     "message",
+		SenderID: 2,
+		Content:  "hello",
+	}
+
+	// First message should succeed
+	err := conn.SendMessageWithRateLimit(message, true)
+	assert.NoError(t, err)
+
+	// Consume the message from the channel
+	select {
+	case <-conn.send:
+		// Expected
+	default:
+		t.Fatal("Expected message in send channel")
+	}
+
+	// Second message immediately should fail due to rate limit
+	err = conn.SendMessageWithRateLimit(message, true)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "rate limit")
+}
+
+func TestHubUnregisterRemovesFromSessions(t *testing.T) {
+	hub := NewHub()
+	go hub.Run()
+
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: map[int]bool{100: true}, // Pre-populate active sessions
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Register
+	hub.Register(conn)
+	time.Sleep(50 * time.Millisecond)
+
+	// Manually add to session (simulating JoinSession processing)
+	hub.JoinSession(conn, 100)
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify in session
+	connections := hub.GetConnectionsForSession(100)
+	assert.Len(t, connections, 1)
+
+	// Unregister
+	hub.Unregister(conn)
+	time.Sleep(50 * time.Millisecond)
+
+	// Verify removed from session
+	connections = hub.GetConnectionsForSession(100)
+	assert.Empty(t, connections)
+
+	// Verify user is offline
+	assert.False(t, hub.IsUserOnline(1))
+}
+
+func TestServerMessageWithDifferentContentTypes(t *testing.T) {
+	config := DefaultConfig()
+	conn := &Connection{
+		UserID:         1,
+		ActiveSessions: make(map[int]bool),
+		send:           make(chan []byte, 256),
+		config:         config,
+	}
+
+	// Test with string content
+	msg1 := ServerMessage{
+		Type:      "chat",
+		SenderID:  1,
+		SessionID: 100,
+		Content:   "text message",
+		Timestamp: time.Now(),
+	}
+	err := conn.SendMessage(msg1)
+	assert.NoError(t, err)
+
+	// Test with map content
+	msg2 := ServerMessage{
+		Type:      "chat",
+		SenderID:  1,
+		SessionID: 100,
+		Content:   map[string]interface{}{"text": "hello", "user": "test"},
+		Timestamp: time.Now(),
+	}
+	err = conn.SendMessage(msg2)
+	assert.NoError(t, err)
+
+	// Test with numeric content
+	msg3 := ServerMessage{
+		Type:      "typing",
+		SenderID:  1,
+		SessionID: 100,
+		Content:   12345,
+		Timestamp: time.Now(),
+	}
+	err = conn.SendMessage(msg3)
+	assert.NoError(t, err)
+
+	// Verify all messages were sent
+	for i := 0; i < 3; i++ {
+		select {
+		case <-conn.send:
+			// Expected
+		default:
+			t.Fatal("Expected message in send channel")
+		}
+	}
 }

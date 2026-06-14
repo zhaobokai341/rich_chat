@@ -54,8 +54,14 @@ func (s *AuthServiceImpl) Login(ctx context.Context, req *LoginRequest) (*LoginR
 
 	// Check if account is locked
 	if s.rateLimitRepo != nil {
-		locked, _ := s.rateLimitRepo.CheckAccountLocked(req.Username)
-		if locked {
+		locked, err := s.rateLimitRepo.CheckAccountLocked(req.Username)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"username": req.Username,
+				"error":    err.Error(),
+			}).Warning("Failed to check account lock status")
+			// Continue with login attempt even if lock check fails
+		} else if locked {
 			log.WithFields(log.Fields{
 				"username": req.Username,
 			}).Warning("Login attempt on locked account")

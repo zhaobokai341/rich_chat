@@ -10,5 +10,3 @@ type UserDatabase struct {
 	Cfg           Config
 	Redis_manager RedisManager
 }
-
-// TODO: 考虑读写分离

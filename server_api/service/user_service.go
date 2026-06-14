@@ -303,7 +303,14 @@ func (s *UserServiceImpl) CheckAccountLocked(identifier string) bool {
 	if s.rateLimitRepo == nil {
 		return false
 	}
-	locked, _ := s.rateLimitRepo.CheckAccountLocked(identifier)
+	locked, err := s.rateLimitRepo.CheckAccountLocked(identifier)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"identifier": identifier,
+			"error":      err.Error(),
+		}).Warning("Failed to check account lock status")
+		return false // Assume not locked if check fails
+	}
 	return locked
 }
 
@@ -314,6 +321,22 @@ func (s *UserServiceImpl) CheckUserExists(userID int) (bool, error) {
 
 // GetUserBasicInfo retrieves basic user information
 func (s *UserServiceImpl) GetUserBasicInfo(ctx context.Context, userID int) (*database.UserBasicInfo, error) {
+	// Check if user exists first
+	exists, err := s.userRepo.ExistsByID(userID)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"user_id": userID,
+			"error":   err.Error(),
+		}).Error("Failed to check user existence")
+		return nil, fmt.Errorf("failed to check user existence: %w", err)
+	}
+	if !exists {
+		log.WithFields(log.Fields{
+			"user_id": userID,
+		}).Warning("User not found")
+		return nil, ErrUserNotFound
+	}
+
 	// Get user basic info
 	userInfo, err := s.userRepo.GetUserBasicInfo(userID)
 	if err != nil {

@@ -15,6 +15,33 @@ func (api *WebServerAPI) Index(c *gin.Context) {
 	c.String(http.StatusOK, "Welcome to Rich Chat!")
 }
 
+// HealthCheck returns basic health status
+func (api *WebServerAPI) HealthCheck(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "ok",
+		"version": VERSION,
+	})
+}
+
+// ReadinessCheck checks if all dependencies are ready
+func (api *WebServerAPI) ReadinessCheck(c *gin.Context) {
+	// Simple readiness check - verify services are initialized
+	ready := api.authService != nil &&
+		api.userService != nil &&
+		api.chatService != nil &&
+		api.tokenService != nil
+
+	if ready {
+		c.JSON(http.StatusOK, gin.H{
+			"status": "ready",
+		})
+	} else {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"status": "not_ready",
+		})
+	}
+}
+
 // Get verification token for sensitive operations - Refactored to use TokenService
 func (api *WebServerAPI) GetVerifyToken(c *gin.Context) {
 	// Get language pack for this request

@@ -9,9 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	log "github.com/sirupsen/logrus"
-)
-
-// App holds all application dependencies (replaces global variables)
+) // App holds all application dependencies (replaces global variables)
 type App struct {
 	Engine       *gin.Engine
 	API          *WebServerAPI
@@ -113,15 +111,20 @@ func (app *App) setupMiddleware() {
 	}
 
 	app.Engine.Use(languageMiddleware())
+	app.Engine.Use(request_id())
 
 	app.Engine.Use(
 		gin.CustomRecovery(
 			func(c *gin.Context, recovered interface{}) {
 				method := c.Request.Method
 				path := c.Request.URL.Path
+				requestID, _ := c.Get("request_id")
 
-				log.Errorf("PANIC: %s %s - Error: %v\nStack:\n%s",
-					method, path, recovered, debug.Stack())
+				log.WithFields(log.Fields{
+					"request_id": requestID,
+					"error":      recovered,
+				}).Errorf("PANIC: %s %s - Stack:\n%s",
+					method, path, debug.Stack())
 
 				c.JSON(http.StatusInternalServerError, gin.H{
 					"code":    http.StatusInternalServerError,
@@ -154,6 +157,10 @@ func (app *App) setupRoutes() {
 		Services:  app.Services,
 	}
 
+	// Health check endpoints (no auth required)
+	app.Engine.GET("/health", app.API.HealthCheck)
+	app.Engine.GET("/ready", app.API.ReadinessCheck)
+
 	app.Engine.GET("/", app.API.Index)
 
 	authGroup := app.Engine.Group("/api/auth")
@@ -185,10 +192,13 @@ func (app *App) setupRoutes() {
 	}
 
 	websocketConfig := websocket.Config{
-		WRITEWAIT:      WEBSOCKET_WRITE_WAIT,
-		PONGWAIT:       WEBSOCKET_PONG_WAIT,
-		PINGPERIOD:     WEBSOCKET_PING_PERIOD,
-		MAXMESSAGESIZE: WEBSOCKET_MAX_MESSAGE_SIZE,
+		WRITEWAIT:             WEBSOCKET_WRITE_WAIT,
+		PONGWAIT:              WEBSOCKET_PONG_WAIT,
+		PINGPERIOD:            WEBSOCKET_PING_PERIOD,
+		MAXMESSAGESIZE:        WEBSOCKET_MAX_MESSAGE_SIZE,
+		SEND_CHANNEL_BUFFER:   WEBSOCKET_SEND_CHANNEL_BUFFER,
+		MAX_MESSAGES_PER_SEC:  WEBSOCKET_MAX_MESSAGES_PER_SEC,
+		OFFLINE_MESSAGE_DELAY: WEBSOCKET_OFFLINE_MSG_DELAY,
 	}
 	websocketHandler := websocket.NewHandler(
 		app.API.websocketHub,

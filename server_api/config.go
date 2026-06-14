@@ -14,12 +14,15 @@ const (
 	WEB_PORT         = ":2316"                             // http port
 	DEFAULT_LANGUAGE = "zh"                                // default language (zh/en)
 	LANGUAGE_PACK    = "../lang_pack/server_api/main.json" // language pack file path
-	HTTPS_FORCE      = false                               // force https (RECOMMENDED SET TO TRUE ON PRODUCTION)
+	HTTPS_FORCE      = false                               // force https (SET TO TRUE ON PRODUCTION)
 	VERSION          = "1.0.0"                             // product version, DO NOT CHANGE
 )
 
 var (
-	JWT_SECRET    string // JWT secret - loaded from environment
+	// SECURITY: In production, remove default values and set via environment variables only
+	// JWT_SECRET should be a strong random string (at least 32 characters)
+	JWT_SECRET string // JWT secret - loaded from environment
+	// AUTH_USERNAME and AUTH_PASSWORD are for HTTP Basic Auth on API endpoints
 	AUTH_USERNAME string // HTTP Basic Auth username - loaded from environment
 	AUTH_PASSWORD string // HTTP Basic Auth password - loaded from environment
 )
@@ -94,6 +97,14 @@ const (
 	WEBSOCKET_PONG_WAIT        = 60 * time.Second // Time allowed to read the next pong message from the peer
 	WEBSOCKET_PING_PERIOD      = 54 * time.Second // Send pings to peer (should be less than pong wait)
 	WEBSOCKET_MAX_MESSAGE_SIZE = 5120             // Maximum message size allowed from peer (5KB)
+)
+
+// WebSocket connection configuration
+// These can be adjusted based on production requirements
+const (
+	WEBSOCKET_SEND_CHANNEL_BUFFER  = 256                    // Buffered channel size for outbound messages
+	WEBSOCKET_MAX_MESSAGES_PER_SEC = 10                     // Rate limit: maximum messages per second per connection
+	WEBSOCKET_OFFLINE_MSG_DELAY    = 200 * time.Millisecond // Delay before delivering offline messages (wait for WritePump)
 )
 
 // Database connection pool configuration

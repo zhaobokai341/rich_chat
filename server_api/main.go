@@ -1,6 +1,13 @@
 package main
 
 import (
+	"context"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/golang-jwt/jwt/v4"
 	log "github.com/sirupsen/logrus"
 )
@@ -33,8 +40,37 @@ func main() {
 	}
 	defer app.Close()
 
-	log.Info("Starting server...")
-	if err := app.Engine.Run(WEB_PORT); err != nil {
-		log.Fatal("Server failed to start: ", err)
+	// Create HTTP server with graceful shutdown
+	srv := &http.Server{
+		Addr:    WEB_PORT,
+		Handler: app.Engine,
 	}
+
+	// Start server in a goroutine
+	go func() {
+		log.Infof("Starting server on %s", WEB_PORT)
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatal("Server failed to start: ", err)
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Info("Shutting down server...")
+
+	// Create a deadline for graceful shutdown
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	// Shutdown HTTP server (waits for active connections to finish)
+	if err := srv.Shutdown(ctx); err != nil {
+		log.WithFields(log.Fields{
+			"error": err.Error(),
+		}).Error("Server forced to shutdown")
+	}
+
+	log.Info("Server exited")
 }
