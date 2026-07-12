@@ -33,6 +33,9 @@ var (
 )
 
 // Constructed URL root
+// SECURITY NOTE: This URL includes Basic Auth credentials in the format schema://username:password@domain:port
+// These credentials are used for HTTP Basic Authentication with the server API
+// In production, ensure these are transmitted over HTTPS only
 var url_root string
 
 // LoadConfig loads configuration from environment variables
@@ -43,7 +46,7 @@ func LoadConfig() {
 	}
 
 	// Load URL config
-	LANGUAGE = getEnv("LANGUAGE", "en")
+	LANGUAGE = getEnv("APP_LANGUAGE", "en")
 	LANGUAGE_PACK = getEnv("LANGUAGE_PACK", "client/main.json")
 	URL_SCHEMA = getEnv("URL_SCHEMA", "http")
 	URL_DOMAIN = getEnv("URL_DOMAIN", "localhost")
@@ -66,6 +69,7 @@ func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
 	}
+	log.Printf("Warning: Environment variable %s not set, using default value: %s", key, defaultValue)
 	return defaultValue
 }
 

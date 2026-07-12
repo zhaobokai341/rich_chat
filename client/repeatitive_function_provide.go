@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
-	"os"
 
 	"github.com/charmbracelet/lipgloss"
 )
@@ -37,15 +35,4 @@ func print(style_type string, text string) {
 	if style_type == "critical" {
 		panic(text)
 	}
-}
-
-// simplify user input
-func input(text string) (string, error) {
-	fmt.Print(text)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return "", err
-	}
-	return input, nil
 }

@@ -252,7 +252,11 @@ func (h *UIHandler) startOneOnOneChat(userID int, token string, sessionID, partn
 		h.printError(err)
 		return
 	}
-	defer h.chatService.Disconnect()
+	defer func() {
+		if err := h.chatService.Disconnect(); err != nil {
+			h.printError(fmt.Errorf("disconnect_failed: %w", err))
+		}
+	}()
 
 	hasKey, err := h.chatService.HasEncryptionKey(userID)
 	if err != nil {

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/charmbracelet/x/term"
 )
 
 // handleUnauthenticated shows login/register menu
@@ -180,18 +178,14 @@ func (h *UIHandler) getPasswordWithConfirmation() (string, error) {
 
 		if err := validatePassword(password); err != nil {
 			h.printWarning(err.Error())
-			continue
 		}
 
 		fmt.Print(h.languagePack.Get("confirm_password"))
-		bytePassword2, err := term.ReadPassword(os.Stdin.Fd())
+		password2, err := h.readPassword()
 		if err != nil {
 			h.printError("failed_to_read_password")
 			return "", err
 		}
-		fmt.Println()
-
-		password2 := string(bytePassword2)
 		if password2 == "" {
 			h.printError("password_cannot_be_empty")
 			continue

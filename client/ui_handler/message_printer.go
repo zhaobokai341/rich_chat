@@ -45,7 +45,7 @@ func NewMessagePrinter() *MessagePrinter {
 
 // PrintInfo prints an informational message
 func (mp *MessagePrinter) PrintInfo(message string) {
-	fmt.Println(mp.infoStyle.Render("[i] " + message))
+	fmt.Println(mp.infoStyle.Render("[*] " + message))
 }
 
 // PrintWarning prints a warning message
@@ -55,10 +55,10 @@ func (mp *MessagePrinter) PrintWarning(message string) {
 
 // PrintError prints an error message
 func (mp *MessagePrinter) PrintError(message string) {
-	fmt.Println(mp.errorStyle.Render("[x] " + message))
+	fmt.Println(mp.errorStyle.Render("[-] " + message))
 }
 
 // PrintSuccess prints a success message
 func (mp *MessagePrinter) PrintSuccess(message string) {
-	fmt.Println(mp.successStyle.Render("[ok] " + message))
+	fmt.Println(mp.successStyle.Render("[+] " + message))
 }

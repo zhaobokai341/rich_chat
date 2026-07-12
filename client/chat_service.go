@@ -338,14 +338,14 @@ func (w *WebSocketClient) Connect(baseURL, token string, userID int) error {
 
 	// PongHandler: called when we receive a pong from server (in response to our ping)
 	conn.SetPongHandler(func(appData string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
 	// PingHandler: called when we receive a ping from server
 	// We must respond with pong AND reset read deadline
 	conn.SetPingHandler(func(appData string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return conn.WriteControl(
 			websocket.PongMessage,
 			[]byte(appData),
@@ -510,7 +510,7 @@ func (w *WebSocketClient) readMessages() {
 
 	// Set initial read deadline (must be longer than server ping interval)
 	// Server sends ping every 54s, we need to respond within 60s
-	w.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = w.conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 
 	for {
 		_, message, err := w.conn.ReadMessage()

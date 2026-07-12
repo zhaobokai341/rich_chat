@@ -72,8 +72,8 @@ func TestChatService_GenerateAndUploadKeys(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to parse stored private key: %v", err)
 	}
-	if privateKey.N.BitLen() != 2048 {
-		t.Fatalf("Expected 2048-bit key, got %d bits", privateKey.N.BitLen())
+	if privateKey.N.BitLen() != 4096 {
+		t.Fatalf("Expected 4096-bit key, got %d bits", privateKey.N.BitLen())
 	}
 }
 

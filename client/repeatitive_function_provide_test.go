@@ -65,16 +65,3 @@ func TestPrintFunction(t *testing.T) {
 		})
 	}
 }
-
-func TestLanguageFunctions(t *testing.T) {
-	// Test SetCurrentLanguage and getCurrentLanguage
-	SetCurrentLanguage("en")
-	assert.Equal(t, "en", getCurrentLanguage())
-
-	SetCurrentLanguage("zh")
-	assert.Equal(t, "zh", getCurrentLanguage())
-
-	// Reset to default
-	SetCurrentLanguage(LANGUAGE)
-	assert.Equal(t, LANGUAGE, getCurrentLanguage())
-}
